@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { getMe, getCourses } from "../api";
+import { getMe, getCourses } from "../src/api";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);

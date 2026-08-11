@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 import Layout from "../components/Layout";
-import { loginUser } from "../api";
+import { loginUser } from "../src/api";
 
 export default function LoginPage() {
   // Local state for form fields

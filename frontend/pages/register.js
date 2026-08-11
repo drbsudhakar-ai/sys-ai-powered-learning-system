@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Layout from "../components/Layout";
 import CameraCapture from "../components/CameraCapture";
-import { registerUser } from "../api";
+import { registerUser } from "../src/api";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
