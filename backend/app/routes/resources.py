@@ -6,20 +6,31 @@ Handles:
  - Retrieve all resources or by ID
  - Update resource details
  - Delete resources
+
+Authorization:
+ - Read: any authenticated user (student, faculty, admin)
+ - Write: faculty or admin
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app import models, schemas, database
+from app.routes.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
+
+_staff = require_roles("admin", "faculty")
 
 # =========================
 # Create Resource
 # =========================
 @router.post("/", response_model=schemas.ResourceOut, status_code=status.HTTP_201_CREATED)
-def create_resource(resource: schemas.ResourceCreate, db: Session = Depends(database.get_db)):
+def create_resource(
+    resource: schemas.ResourceCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(_staff),
+):
     # Ensure course exists
     course = db.query(models.Course).filter(models.Course.id == resource.course_id).first()
     if not course:
@@ -42,7 +53,10 @@ def create_resource(resource: schemas.ResourceCreate, db: Session = Depends(data
 # Get All Resources
 # =========================
 @router.get("/", response_model=List[schemas.ResourceOut])
-def get_resources(db: Session = Depends(database.get_db)):
+def get_resources(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     resources = db.query(models.Resource).all()
     return resources
 
@@ -51,7 +65,11 @@ def get_resources(db: Session = Depends(database.get_db)):
 # Get Resource by ID
 # =========================
 @router.get("/{resource_id}", response_model=schemas.ResourceOut)
-def get_resource(resource_id: int, db: Session = Depends(database.get_db)):
+def get_resource(
+    resource_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     resource = db.query(models.Resource).filter(models.Resource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
@@ -62,7 +80,12 @@ def get_resource(resource_id: int, db: Session = Depends(database.get_db)):
 # Update Resource
 # =========================
 @router.put("/{resource_id}", response_model=schemas.ResourceOut)
-def update_resource(resource_id: int, updated_resource: schemas.ResourceCreate, db: Session = Depends(database.get_db)):
+def update_resource(
+    resource_id: int,
+    updated_resource: schemas.ResourceCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(_staff),
+):
     resource = db.query(models.Resource).filter(models.Resource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
@@ -87,7 +110,11 @@ def update_resource(resource_id: int, updated_resource: schemas.ResourceCreate, 
 # Delete Resource
 # =========================
 @router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_resource(resource_id: int, db: Session = Depends(database.get_db)):
+def delete_resource(
+    resource_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(_staff),
+):
     resource = db.query(models.Resource).filter(models.Resource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")

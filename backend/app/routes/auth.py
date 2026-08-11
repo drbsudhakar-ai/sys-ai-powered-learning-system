@@ -59,11 +59,35 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    user_id: str = payload.get("sub")
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    try:
+        user_pk = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = db.query(models.User).filter(models.User.id == user_pk).first()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     return user
+
+
+def require_roles(*allowed_roles: str):
+    """Dependency factory: require an authenticated user whose role is allowed."""
+
+    allowed = {role.lower() for role in allowed_roles}
+
+    def _checker(current_user: models.User = Depends(get_current_user)) -> models.User:
+        if (current_user.role or "").lower() not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        return current_user
+
+    return _checker
 
 
 # =========================
