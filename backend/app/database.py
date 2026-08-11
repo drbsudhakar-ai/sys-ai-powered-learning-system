@@ -4,23 +4,18 @@ Database Configuration
 SYS AI Lecturer System
 Primary: Supabase (Managed PostgreSQL)
 Future Scope: Neon, Render, Railway, or any PostgreSQL-compatible service
+
+DATABASE_URL is loaded from the environment via app.config.settings.
+Never hardcode database credentials in this module.
 """
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
 
-# Load environment variables from .env
-load_dotenv()
+from app.config import settings
 
-# Example Supabase connection string:
-# postgresql://postgres:<PASSWORD>@db.<PROJECT_REF>.supabase.co:5432/postgres
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL not set in .env file")
+DATABASE_URL = settings.DATABASE_URL
 
 # Create SQLAlchemy engine
 # pool_pre_ping keeps connections alive, useful for cloud DBs

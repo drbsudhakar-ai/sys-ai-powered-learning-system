@@ -7,14 +7,34 @@ venv/
 .next/
 out/
 
+# Build / coverage / test artifacts
+build/
+dist/
+coverage/
+htmlcov/
+.coverage
+.pytest_cache/
+.mypy_cache/
+test-results/
+playwright-report/
+
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
 
-# Environment/secrets
+# Environment / secrets
 .env
 .env.*
 !.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local storage / uploads
+storage/
 
 # IDE
 .vscode/
@@ -26,3 +46,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Secret scanning baseline (generated locally; commit only intentionally)
+.secrets.baseline

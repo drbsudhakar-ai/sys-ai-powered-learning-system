@@ -1,13 +1,16 @@
 fastapi==0.115.0
 uvicorn==0.30.0
 sqlalchemy==2.0.32
+alembic==1.13.2             # Migrations (backend/alembic); URL from DATABASE_URL
 psycopg2-binary==2.9.9      # PostgreSQL driver
 pandas==2.2.2               # Excel validation
 opencv-python==4.9.0.80     # Camera capture
 face-recognition==1.3.0     # Facial recognition
-bcrypt==4.1.3               # Password hashing
+passlib[bcrypt]==1.7.4      # Password hashing (app.utils)
+bcrypt==4.1.3               # bcrypt backend for passlib
+python-jose[cryptography]==3.3.0  # JWT (app.utils)
 email-validator==2.1.1      # Email validation
 python-multipart==0.0.9     # File uploads
 firebase-admin==6.5.0       # Optional: Firebase integration
-python-dotenv==1.0.1        # Environment variables
+python-dotenv==1.0.1        # Environment variables (app.config)
 requests==2.32.3            # API calls

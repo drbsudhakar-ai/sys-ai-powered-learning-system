@@ -1,0 +1,47 @@
+# Gitleaks configuration for SYS
+# https://github.com/gitleaks/gitleaks
+#
+# Why: lightweight local protection against accidental credential commits
+# after the P0-002 secrets hardening work.
+#
+# Install (examples):
+#   winget install gitleaks
+#   OR download release from https://github.com/gitleaks/gitleaks/releases
+#
+# Run from repository root (preferred — scans Git-tracked content):
+#   gitleaks detect --source . --config .gitleaks.toml --verbose
+#
+# Exit code 0 = no secrets found.
+
+title = "SYS gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders, task docs, generated/vendor asset noise"
+paths = [
+  '''(^|/)\.git/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)venv/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)frontend/public/exam-prep_files/''',
+  '''docs/cursor/tasks/''',
+  '''\.gitleaks\.toml''',
+  # Local env files are gitignored on purpose; never commit them.
+  '''(^|/)\.env$''',
+  '''(^|/)\.env\.''',
+  '''(^|/)backend/\.env$''',
+  '''(^|/)frontend/\.env''',
+]
+regexes = [
+  '''YOUR_PASSWORD''',
+  '''YOUR_HOST''',
+  '''CHANGE_ME''',
+  '''driver://user:pass@localhost/dbname''',
+  '''postgres:<PASSWORD>''',
+  '''postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres''',
+  '''supersecretkey''',
+  '''username:realpassword''',
+]

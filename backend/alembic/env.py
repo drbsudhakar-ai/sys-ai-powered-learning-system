@@ -1,6 +1,17 @@
 from logging.config import fileConfig
+import os
+from pathlib import Path
+
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+from dotenv import load_dotenv
+
+# Load environment files before reading DATABASE_URL
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _BACKEND_ROOT.parent
+load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_BACKEND_ROOT / ".env")
+load_dotenv()
 
 # Import your Base and models
 from app.database import Base
@@ -16,8 +27,18 @@ from app.models import (
 # this is the Alembic Config object, which provides access to values within alembic.ini
 config = context.config
 
+# Prefer DATABASE_URL from the environment; never rely on credentials in alembic.ini
+database_url = os.getenv("DATABASE_URL")
+if not database_url or not database_url.strip():
+    raise RuntimeError(
+        "DATABASE_URL is not set. Configure backend/.env (or repo-root .env) "
+        "before running Alembic. Do not put real credentials in alembic.ini."
+    )
+config.set_main_option("sqlalchemy.url", database_url.strip())
+
 # Interpret the config file for Python logging.
-fileConfig(config.config_file_name)
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
 
 # Add your model's metadata here for 'autogenerate' support
 target_metadata = Base.metadata
@@ -57,8 +78,8 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True,  # ✅ detects column type changes
-            compare_server_default=True,  # ✅ detects default changes
+            compare_type=True,  # detects column type changes
+            compare_server_default=True,  # detects default changes
         )
 
         with context.begin_transaction():
