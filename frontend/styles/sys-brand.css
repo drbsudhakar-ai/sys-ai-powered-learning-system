@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+
+/* ================================
+   SYS Brand Kit CSS
+   ================================ */
+   
+   
+ 
+   
+   :root {
+    --sys-blue: #1E88E5;
+    --sys-orange: #FB8C00;
+    --sys-gray: #424242;
+    --sys-white: #FFFFFF;
+    --sys-bg: #FFFFFF;
+    --sys-text: #424242;
+    --sys-gradient: linear-gradient(90deg, #1E88E5, #FB8C00);
+  }
+
+  [data-theme="dark"] {
+    --sys-blue: #90CAF9;       /* Softer blue for dark mode */
+    --sys-orange: #FFB74D;     /* Softer orange */
+    --sys-gray: #E0E0E0;       /* Light gray text */
+    --sys-white: #121212;      /* Dark background */
+    --sys-bg: #121212;
+    --sys-text: #E0E0E0;
+    --sys-gradient: linear-gradient(90deg, #90CAF9, #FFB74D);
+  }
+
+
+  
+  
+  
+  /* Global Reset */
+  body {
+    font-family: 'Poppins', sans-serif;
+    color: var(--sys-gray);
+    margin: 0;
+    padding: 0;
+    background-color: var(--sys-bg);
+    color: var(--sys-text);
+  }
+  
+  /* Logo */
+  .sys-logo {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 2.5rem;
+    color: var(--sys-blue);
+    text-align: center;
+  }
+  
+  /* Tagline */
+  .sys-tagline {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 1.2rem;
+    color: var(--sys-orange);
+    text-align: center;
+    margin-top: 0.5rem;
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    background-color: var(--sys-blue);
+    color: var(--sys-white);
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  .btn-primary:hover {
+    background-color: #1565C0;
+  }
+  
+  .btn-secondary {
+    background-color: var(--sys-white);
+    color: var(--sys-orange);
+    border: 2px solid var(--sys-orange);
+    border-radius: 6px;
+    padding: 12px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .btn-secondary:hover {
+    background-color: var(--sys-orange);
+    color: var(--sys-white);
+  }
+  
+  /* Cards */
+  .sys-card {
+    background-color: var(--sys-white);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 600px;
+    border-top: 4px solid var(--sys-blue);
+  }
+  
+  /* Progress Bar */
+  .sys-progress {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--sys-gradient);
+  }
+  
+  /* Input Fields */
+  .input-field {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.9rem;
+    transition: border-color 0.3s ease;
+    width: 100%;
+  }
+  .input-field:focus {
+    border-color: var(--sys-blue);
+    outline: none;
+    box-shadow: 0 0 5px rgba(30,136,229,0.5);
+  }
+  
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 8px;
+  }
+  th {
+    font-weight: 600;
+    color: var(--sys-blue);
+  }
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
