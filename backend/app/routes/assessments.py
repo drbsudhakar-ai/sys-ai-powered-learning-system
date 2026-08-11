@@ -39,6 +39,7 @@ def create_assessment(
     new_assessment = models.Assessment(
         title=assessment.title,
         course_id=assessment.course_id,
+        due_date=assessment.due_date,
         created_by=current_user.id,
     )
     db.add(new_assessment)
@@ -95,6 +96,7 @@ def update_assessment(
 
     assessment.title = updated_assessment.title
     assessment.course_id = updated_assessment.course_id
+    assessment.due_date = updated_assessment.due_date
 
     db.commit()
     db.refresh(assessment)

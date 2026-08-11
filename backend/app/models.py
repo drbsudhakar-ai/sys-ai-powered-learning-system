@@ -105,6 +105,7 @@ class Assessment(Base):
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"))  # faculty/admin
     due_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     course = relationship("Course", back_populates="assessments")
     created_by_user = relationship("User", back_populates="assessments")  # audit trail

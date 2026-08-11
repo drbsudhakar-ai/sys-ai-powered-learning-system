@@ -66,8 +66,6 @@ class LoginRequest(BaseModel):
 class CourseBase(BaseModel):
     title: str
     description: Optional[str] = None
-    duration: Optional[int] = None  # hours
-    category: Optional[str] = None  # Entrance Test, Competitive Exam, etc.
 
 class CourseCreate(CourseBase):
     pass
@@ -85,18 +83,16 @@ class CourseOut(CourseBase):
 # =========================
 class AssessmentBase(BaseModel):
     title: str
-    description: Optional[str] = None
-    duration: Optional[int] = None  # minutes
-    difficulty: Optional[str] = None  # Easy, Medium, Hard
-    status: Optional[str] = "Scheduled"
 
 class AssessmentCreate(AssessmentBase):
     course_id: int
+    due_date: Optional[datetime] = None
 
 class AssessmentOut(AssessmentBase):
     id: int
     course_id: int
     created_at: datetime
+    due_date: Optional[datetime] = None
 
     class Config:
         from_attributes = True
