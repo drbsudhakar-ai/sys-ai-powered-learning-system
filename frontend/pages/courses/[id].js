@@ -138,6 +138,12 @@ export default function CourseDetailsPage() {
               <Link href={`/courses/${course.id}/edit`} className="btn-primary no-underline">
                 Edit Course
               </Link>
+              <Link href={`/assessments?course_id=${course.id}`} className="btn-secondary no-underline">
+                View Assessments
+              </Link>
+              <Link href={`/assessments/new?course_id=${course.id}`} className="btn-secondary no-underline">
+                Create Assessment
+              </Link>
               <button type="button" className="btn-secondary" onClick={onDelete} disabled={deleting} aria-label="Delete course">
                 {deleting ? "Deleting…" : "Delete Course"}
               </button>

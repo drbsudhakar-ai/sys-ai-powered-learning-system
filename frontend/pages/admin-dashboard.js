@@ -51,6 +51,21 @@ export default function AdminDashboardPage() {
             <p className="mt-2 text-sm text-[var(--sys-gray)]">Manage faculty and academic responsibilities.</p>
             <Link href="/admin/faculty" className="btn-primary mt-4 inline-flex no-underline">Manage Faculty</Link>
           </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Assessments</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Design topic, weekly, monthly and grand tests.</p>
+            <Link href="/assessments" className="btn-primary mt-4 inline-flex no-underline">Manage Assessments</Link>
+          </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Performance</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Student performance sheets and report cards.</p>
+            <Link href="/performance" className="btn-primary mt-4 inline-flex no-underline">Open Performance</Link>
+          </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Notifications</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Configure assessment report email recipients.</p>
+            <Link href="/admin/notifications" className="btn-primary mt-4 inline-flex no-underline">Configure</Link>
+          </section>
         </div>
       )}
     </div>

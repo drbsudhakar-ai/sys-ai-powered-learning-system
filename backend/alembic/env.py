@@ -22,7 +22,17 @@ from app.models import (
     FacultyCourseAssignment,
     Subject,
     SubjectExpertAssignment,
+    Topic,
+    Subtopic,
+    Question,
     Assessment,
+    AssessmentBlueprintItem,
+    AssessmentVersion,
+    AssessmentQuestion,
+    AssessmentAttempt,
+    PerformanceRecord,
+    NotificationRecipient,
+    Notification,
     Resource,
 )
 

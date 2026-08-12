@@ -25,6 +25,9 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
     if (Array.isArray(detail)) {
       return detail.map((d) => d.msg || JSON.stringify(d)).join(" ");
     }
+    if (detail && typeof detail === "object" && Array.isArray(detail.errors)) {
+      return detail.errors.join(" ");
+    }
     return typeof detail === "string" ? detail : "Please check the form fields and try again.";
   }
   if (typeof detail === "string") return detail;
@@ -69,5 +72,34 @@ export const adminAssignSubjectExpert = (data) =>
   API.post("/admin/subject-experts", data);
 export const adminRemoveSubjectExpert = (id) =>
   API.delete(`/admin/subject-experts/${id}`);
+
+// Assessments (P0-009)
+export const getAssessments = (params) => API.get("/assessments/", { params });
+export const getAssessment = (id) => API.get(`/assessments/${id}`);
+export const createAssessment = (data) => API.post("/assessments/", data);
+export const updateAssessment = (id, data) => API.put(`/assessments/${id}`, data);
+export const archiveAssessment = (id) => API.post(`/assessments/${id}/archive`);
+export const setAssessmentBlueprint = (id, items) => API.put(`/assessments/${id}/blueprint`, items);
+export const assembleAssessment = (id) => API.post(`/assessments/${id}/assemble`);
+export const publishAssessment = (id) => API.post(`/assessments/${id}/publish`);
+
+export const listTopics = (params) => API.get("/topics", { params });
+export const createTopic = (data) => API.post("/topics", data);
+export const listSubtopics = (params) => API.get("/subtopics", { params });
+export const createSubtopic = (data) => API.post("/subtopics", data);
+export const listQuestions = (params) => API.get("/questions", { params });
+export const createQuestion = (data) => API.post("/questions", data);
+
+export const getPerformanceSheet = (params) => API.get("/performance/sheet", { params });
+export const getReportCard = (params) => API.get("/performance/report-card", { params });
+export const downloadReportCardPdf = (params) =>
+  API.get("/performance/report-card.pdf", { params, responseType: "blob" });
+
+export const listNotificationRecipients = () => API.get("/notifications/recipients");
+export const createNotificationRecipient = (data) => API.post("/notifications/recipients", data);
+export const updateNotificationRecipient = (id, data) =>
+  API.put(`/notifications/recipients/${id}`, data);
+export const listNotifications = () => API.get("/notifications");
+export const retryNotification = (id) => API.post(`/notifications/${id}/retry`);
 
 export default API;

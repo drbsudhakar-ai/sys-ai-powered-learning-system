@@ -52,5 +52,13 @@ class Settings:
                 "ACCESS_TOKEN_EXPIRE_MINUTES must be an integer"
             ) from exc
 
+    @property
+    def SMTP_HOST(self) -> str | None:
+        return os.getenv("SMTP_HOST") or None
+
+    @property
+    def SMTP_FROM(self) -> str | None:
+        return os.getenv("SMTP_FROM") or None
+
 
 settings = Settings()
