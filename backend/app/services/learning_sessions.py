@@ -268,12 +268,18 @@ def list_sessions_for_user(
     user: models.User,
     *,
     course_id: Optional[int] = None,
+    subject_id: Optional[int] = None,
+    topic_id: Optional[int] = None,
     mode: Optional[str] = None,
     status_filter: Optional[str] = None,
 ) -> List[models.LearningSession]:
     q = db.query(models.LearningSession)
     if course_id is not None:
         q = q.filter(models.LearningSession.course_id == course_id)
+    if subject_id is not None:
+        q = q.filter(models.LearningSession.subject_id == subject_id)
+    if topic_id is not None:
+        q = q.filter(models.LearningSession.topic_id == topic_id)
     if mode:
         q = q.filter(models.LearningSession.mode == _validate_mode(mode))
     if status_filter:
@@ -283,6 +289,61 @@ def list_sessions_for_user(
 
     sessions = q.order_by(models.LearningSession.id.desc()).limit(200).all()
     return [s for s in sessions if can_view_session(db, user, s)]
+
+
+def update_session(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+    *,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    subject_id: Optional[int] = ...,
+    topic_id: Optional[int] = ...,
+    subtopic_id: Optional[int] = ...,
+    scheduled_start: Optional[datetime] = ...,
+    scheduled_end: Optional[datetime] = ...,
+) -> models.LearningSession:
+    """Update mutable metadata. Ellipsis means field not provided."""
+    session = get_session(db, session_id)
+    require_manage_session(db, actor, session)
+    if session.status in ("COMPLETED", "CANCELLED", "ARCHIVED"):
+        raise _http(400, "Cannot modify a closed session")
+
+    if title is not None:
+        if not str(title).strip():
+            raise _http(422, "Title cannot be empty")
+        session.title = str(title).strip()
+    if description is not None:
+        session.description = description
+
+    new_subject = session.subject_id if subject_id is ... else subject_id
+    new_topic = session.topic_id if topic_id is ... else topic_id
+    new_subtopic = session.subtopic_id if subtopic_id is ... else subtopic_id
+    if subject_id is not ... or topic_id is not ... or subtopic_id is not ...:
+        _validate_academic_refs(
+            db,
+            course_id=session.course_id,
+            subject_id=new_subject,
+            topic_id=new_topic,
+            subtopic_id=new_subtopic,
+        )
+        # Changing subject scope still requires manage rights on new subject
+        if subject_id is not ... and subject_id != session.subject_id:
+            require_manage_session_scope(
+                db, actor, course_id=session.course_id, subject_id=subject_id
+            )
+        session.subject_id = new_subject
+        session.topic_id = new_topic
+        session.subtopic_id = new_subtopic
+
+    if scheduled_start is not ...:
+        session.scheduled_start = scheduled_start
+    if scheduled_end is not ...:
+        session.scheduled_end = scheduled_end
+
+    db.commit()
+    return get_session(db, session.id)
 
 
 def transition_status(
@@ -335,6 +396,23 @@ def transition_status(
     session.status = new_status
     db.commit()
     return get_session(db, session.id)
+
+
+def start_session_flow(db: Session, actor: models.User, session_id: int) -> models.LearningSession:
+    """Move session into IN_PROGRESS via valid intermediate states if needed."""
+    session = get_session(db, session_id)
+    require_manage_session(db, actor, session)
+    if session.status == "IN_PROGRESS":
+        return session
+    if session.status == "DRAFT":
+        session = transition_status(db, actor, session_id, "READY")
+    elif session.status == "SCHEDULED":
+        session = transition_status(db, actor, session_id, "READY")
+    if session.status == "READY":
+        return transition_status(db, actor, session_id, "IN_PROGRESS")
+    if session.status == "PAUSED":
+        return transition_status(db, actor, session_id, "IN_PROGRESS")
+    raise _http(422, f"Cannot start session from status {session.status}")
 
 
 def add_participant(
@@ -483,6 +561,128 @@ def add_objective(
     db.commit()
     db.refresh(row)
     return row
+
+
+def delete_objective(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+    objective_id: int,
+) -> Dict[str, Any]:
+    session = get_session(db, session_id)
+    require_manage_session(db, actor, session)
+    if session.status in ("COMPLETED", "CANCELLED", "ARCHIVED"):
+        raise _http(400, "Cannot modify objectives on a closed session")
+    row = (
+        db.query(models.LearningSessionObjective)
+        .filter(
+            models.LearningSessionObjective.id == objective_id,
+            models.LearningSessionObjective.session_id == session_id,
+        )
+        .first()
+    )
+    if not row:
+        raise _http(404, "Objective not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "objective_id": objective_id}
+
+
+def update_activity(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+    activity_id: int,
+    *,
+    title: Optional[str] = None,
+    description: Optional[str] = ...,
+    sequence: Optional[int] = None,
+    status_value: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = ...,
+) -> models.LearningSessionActivity:
+    session = get_session(db, session_id)
+    require_manage_session(db, actor, session)
+    if session.status in ("COMPLETED", "CANCELLED", "ARCHIVED"):
+        raise _http(400, "Cannot modify activities on a closed session")
+    row = (
+        db.query(models.LearningSessionActivity)
+        .filter(
+            models.LearningSessionActivity.id == activity_id,
+            models.LearningSessionActivity.session_id == session_id,
+        )
+        .first()
+    )
+    if not row:
+        raise _http(404, "Activity not found")
+    if title is not None:
+        if not str(title).strip():
+            raise _http(422, "Title cannot be empty")
+        row.title = str(title).strip()
+    if description is not ...:
+        row.description = description
+    if sequence is not None:
+        row.sequence = sequence
+    if status_value is not None:
+        status_value = status_value.upper()
+        if status_value not in LEARNING_ACTIVITY_STATUSES:
+            raise _http(422, f"Invalid activity status: {status_value}")
+        row.status = status_value
+    if payload is not ...:
+        row.payload = payload
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def delete_activity(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+    activity_id: int,
+) -> Dict[str, Any]:
+    session = get_session(db, session_id)
+    require_manage_session(db, actor, session)
+    if session.status in ("COMPLETED", "CANCELLED", "ARCHIVED"):
+        raise _http(400, "Cannot modify activities on a closed session")
+    row = (
+        db.query(models.LearningSessionActivity)
+        .filter(
+            models.LearningSessionActivity.id == activity_id,
+            models.LearningSessionActivity.session_id == session_id,
+        )
+        .first()
+    )
+    if not row:
+        raise _http(404, "Activity not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "activity_id": activity_id}
+
+
+def list_evidence(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+) -> List[models.LearningEvidence]:
+    session = get_session(db, session_id)
+    require_view_session(db, actor, session)
+    rows = (
+        db.query(models.LearningEvidence)
+        .filter(models.LearningEvidence.session_id == session_id)
+        .order_by(models.LearningEvidence.id.desc())
+        .limit(500)
+        .all()
+    )
+    # Students only see their own evidence unless they can manage the session
+    can_manage = False
+    try:
+        require_manage_session(db, actor, session)
+        can_manage = True
+    except HTTPException:
+        can_manage = False
+    if can_manage or is_admin(actor):
+        return rows
+    return [r for r in rows if r.user_id == actor.id]
 
 
 def add_activity(

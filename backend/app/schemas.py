@@ -581,6 +581,16 @@ class LearningSessionCreate(BaseModel):
     primary_student_id: Optional[int] = None
 
 
+class LearningSessionUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    scheduled_start: Optional[datetime] = None
+    scheduled_end: Optional[datetime] = None
+
+
 class LearningSessionStatusChange(BaseModel):
     status: str
 
@@ -608,6 +618,14 @@ class LearningActivityIn(BaseModel):
     participant_id: Optional[int] = None
     payload: Optional[Dict[str, Any]] = None
     assessment_id: Optional[int] = None
+
+
+class LearningActivityUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+    sequence: Optional[int] = None
+    status: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
 
 
 class LearningEvidenceIn(BaseModel):
