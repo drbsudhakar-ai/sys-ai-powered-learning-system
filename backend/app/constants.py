@@ -226,4 +226,73 @@ LEARNING_EVIDENCE_EVENT_TYPES = (
     "PARTICIPATION_RECORDED",
     "OBJECTIVE_COMPLETED",
     "AI_INTERACTION",
+    # P0-013.4 digital classroom
+    "TEACHING_OPENED",
+    "TEACHING_STEP_REACHED",
+    "TEACHING_PAUSED",
+    "TEACHING_RESUMED",
+    "TEACHING_COMPLETED",
+    "TEACHING_INTERACTION",
 )
+
+# =========================
+# P0-013.4 Digital Classroom / Teaching Plan
+# =========================
+TEACHING_STEP_KINDS = (
+    "INTRODUCTION",
+    "CONCEPT",
+    "EXPLANATION",
+    "EXAMPLE",
+    "CHECK",
+    "APPLICATION",
+    "SUMMARY",
+    "REMEDIATION",
+)
+
+TEACHING_VISUAL_TYPES = (
+    "TEXT",
+    "FORMULA",
+    "DIAGRAM_2D",
+    "CHART",
+    "ANIMATION_2D",
+    "3D_MODEL",
+    "BOARD_MIXED",
+)
+
+TEACHING_BOARD_ACTIONS = (
+    "reveal",
+    "write",
+    "draw",
+    "highlight",
+    "emphasize",
+    "move",
+    "rotate",
+    "zoom",
+    "pan",
+    "transform",
+    "connect",
+    "separate",
+    "compare",
+    "replace",
+    "fade",
+    "annotate",
+    "erase",
+    "replay",
+)
+
+TEACHING_LECTURE_STATUSES = ("READY", "PLAYING", "PAUSED", "COMPLETED")
+
+TEACHING_INTERACTION_INTENTS = (
+    "ASK",
+    "DONT_UNDERSTAND",
+    "EXPLAIN_AGAIN",
+    "SHOW_EXAMPLE",
+    "SLOW_DOWN",
+    "SHOW_VISUALLY",
+    "GO_BACK",
+    "CONTINUE",
+    "CHECK_UNDERSTANDING",
+)
+
+TEACHING_STEP_CONTROL_ACTIONS = ("NEXT", "PREV", "GOTO", "REPLAY")
+TEACHING_PLAYBACK_ACTIONS = ("PAUSE", "RESUME", "COMPLETE", "SLOW_DOWN", "SPEED_UP")

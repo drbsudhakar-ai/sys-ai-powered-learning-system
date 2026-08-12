@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas, database
 from app.routes.auth import get_current_user
 from app.services import learning_sessions as ls
+from app.services import ai_lecturer as lecturer
 
 router = APIRouter(prefix="/learning-sessions", tags=["Learning Sessions"])
 
@@ -376,4 +377,70 @@ def create_evidence(
         activity_id=payload.activity_id,
         objective_id=payload.objective_id,
         payload=payload.payload,
+    )
+
+
+# ---- P0-013.4 AI Lecturer / Digital Classroom ----
+
+
+@router.post("/{session_id}/lecture/open", response_model=schemas.LectureStateOut)
+def open_lecture(
+    session_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return lecturer.open_lecture(db, current_user, session_id)
+
+
+@router.get("/{session_id}/lecture", response_model=schemas.LectureStateOut)
+def get_lecture(
+    session_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return lecturer.get_lecture(db, current_user, session_id)
+
+
+@router.post("/{session_id}/lecture/step", response_model=schemas.LectureStateOut)
+def lecture_step_control(
+    session_id: int,
+    payload: schemas.LectureStepControlIn,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return lecturer.control_step(
+        db,
+        current_user,
+        session_id,
+        action=payload.action,
+        step_index=payload.step_index,
+    )
+
+
+@router.post("/{session_id}/lecture/control", response_model=schemas.LectureStateOut)
+def lecture_playback_control(
+    session_id: int,
+    payload: schemas.LecturePlaybackControlIn,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return lecturer.control_playback(
+        db, current_user, session_id, action=payload.action
+    )
+
+
+@router.post("/{session_id}/lecture/interact", response_model=schemas.LectureStateOut)
+def lecture_interact(
+    session_id: int,
+    payload: schemas.LectureInteractIn,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return lecturer.interact(
+        db,
+        current_user,
+        session_id,
+        intent=payload.intent,
+        message=payload.message,
+        answer=payload.answer,
     )

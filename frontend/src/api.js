@@ -167,4 +167,17 @@ export const markInboxAllRead = () => API.post("/inbox/notifications/read-all");
 export const getNotificationPreferences = () => API.get("/inbox/preferences");
 export const updateNotificationPreferences = (data) => API.put("/inbox/preferences", data);
 
+// P0-013 Learning Sessions + AI Lecturer digital classroom
+export const listLearningSessions = (params) => API.get("/learning-sessions", { params });
+export const getLearningSession = (id) => API.get(`/learning-sessions/${id}`);
+export const createLearningSession = (data) => API.post("/learning-sessions", data);
+export const openLecture = (sessionId) => API.post(`/learning-sessions/${sessionId}/lecture/open`);
+export const getLecture = (sessionId) => API.get(`/learning-sessions/${sessionId}/lecture`);
+export const lectureStep = (sessionId, data) =>
+  API.post(`/learning-sessions/${sessionId}/lecture/step`, data);
+export const lectureControl = (sessionId, data) =>
+  API.post(`/learning-sessions/${sessionId}/lecture/control`, data);
+export const lectureInteract = (sessionId, data) =>
+  API.post(`/learning-sessions/${sessionId}/lecture/interact`, data);
+
 export default API;

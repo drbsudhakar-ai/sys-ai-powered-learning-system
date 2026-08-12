@@ -104,4 +104,246 @@
     outline: none;
     box-shadow: 0 0 5px rgba(30,136,229,0.5);
   }
+
+  /* ================================
+     P0-013.4 Digital Classroom
+     ================================ */
+  .lecture-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1rem 1rem 2.5rem;
+  }
+  .lecture-topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+  }
+  .lecture-back {
+    color: var(--sys-blue);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .lecture-title {
+    margin: 0.25rem 0;
+    color: var(--sys-blue);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  .lecture-subtitle {
+    margin: 0;
+    color: var(--sys-gray);
+    font-size: 0.875rem;
+  }
+  .lecture-error {
+    color: #c62828;
+    margin: 0.5rem 0;
+  }
+  .digital-board {
+    min-height: 420px;
+  }
+  .digital-board-surface {
+    background:
+      radial-gradient(circle at 20% 20%, rgba(30,136,229,0.08), transparent 40%),
+      radial-gradient(circle at 80% 0%, rgba(251,140,0,0.1), transparent 35%),
+      linear-gradient(180deg, #0f2740 0%, #163552 55%, #0d2133 100%);
+    color: #f5f7fa;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem 1.75rem;
+    min-height: 420px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .digital-board-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+  .digital-board-kind,
+  .digital-board-visual,
+  .digital-board-actions {
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+  }
+  .digital-board-elements {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .lecture-heading {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .lecture-text,
+  .lecture-bullet {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.45;
+  }
+  .lecture-bullet {
+    padding-left: 0.25rem;
+  }
+  .lecture-bullet::before {
+    content: "• ";
+    color: var(--sys-orange);
+  }
+  .lecture-formula {
+    display: inline-block;
+    margin: 0.35rem 0;
+    padding: 0.65rem 1.1rem;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(251,140,0,0.55);
+    font-family: "Times New Roman", Times, serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .lecture-callout {
+    border-left: 3px solid var(--sys-orange);
+    padding: 0.5rem 0.75rem;
+    background: rgba(251,140,0,0.12);
+  }
+  .lecture-arrow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #90caf9;
+  }
+  .lecture-arrow-line {
+    display: inline-block;
+    width: 64px;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #90caf9);
+  }
+  .lecture-diagram {
+    width: 140px;
+    height: 90px;
+    display: grid;
+    place-items: center;
+    background: rgba(30,136,229,0.25);
+    border: 2px solid rgba(144,202,249,0.7);
+    border-radius: 8px;
+    margin: 0.35rem 0;
+  }
+  .lecture-diagram.shape-heart {
+    border-radius: 50% 50% 45% 45%;
+    background: rgba(198,40,40,0.45);
+  }
+  .lecture-diagram.shape-ellipse {
+    border-radius: 50%;
+    width: 160px;
+  }
+  .lecture-diagram.shape-cycle {
+    border-radius: 999px;
+    width: 160px;
+  }
+  .lecture-highlight-marker {
+    color: #ffe082;
+  }
+  .digital-board-stage-3d,
+  .visual3d-wrap {
+    height: 240px;
+    margin-bottom: 0.75rem;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0,0,0,0.25);
+  }
+  .r3f-label {
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .animate-reveal {
+    animation: board-reveal 0.55s ease both;
+  }
+  .animate-pulse-soft {
+    animation: board-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes board-reveal {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes board-pulse {
+    0%, 100% { opacity: 0.65; }
+    50% { opacity: 1; }
+  }
+  .lecture-narration {
+    margin-top: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    background: #f7f9fc;
+    border: 1px solid #e3e8ef;
+  }
+  .lecture-narration p {
+    margin: 0.35rem 0 0;
+  }
+  .lecture-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    position: sticky;
+    bottom: 0.5rem;
+    background: rgba(255,255,255,0.92);
+    padding: 0.65rem;
+    border-radius: 8px;
+    border: 1px solid #e3e8ef;
+  }
+  .ask-lecturer-panel {
+    margin-top: 0.75rem;
+    padding: 0.85rem;
+    border: 1px dashed #90caf9;
+    border-radius: 8px;
+    background: #fafcff;
+    max-width: 520px;
+  }
+  .ask-lecturer-title {
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    color: var(--sys-blue);
+  }
+  .ask-lecturer-intents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+  .ask-lecturer-input {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.5rem;
+  }
+  .lecture-check-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
+  }
   

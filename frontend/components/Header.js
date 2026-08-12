@@ -163,6 +163,23 @@ export default function Header() {
           </Link>
 
           <Link
+            href="/learning-sessions"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            Classroom
+          </Link>
+
+          <Link
             href="/question-bank"
             className="
               rounded-xl

@@ -744,6 +744,44 @@ class LearningSessionProgressOut(BaseModel):
     participants: List[LearningParticipantProgressOut] = []
 
 
+# P0-013.4 Digital classroom / AI Lecturer
+class LectureStepControlIn(BaseModel):
+    action: str
+    step_index: Optional[int] = None
+
+
+class LecturePlaybackControlIn(BaseModel):
+    action: str
+
+
+class LectureInteractIn(BaseModel):
+    intent: str
+    message: Optional[str] = None
+    answer: Optional[str] = None
+
+
+class LectureStateOut(BaseModel):
+    session_id: int
+    activity_id: int
+    title: str
+    mode: str
+    session_status: str
+    course_id: int
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    objectives: List[Dict[str, Any]] = []
+    teaching_plan: Dict[str, Any]
+    current_step_index: int
+    current_step: Optional[Dict[str, Any]] = None
+    lecture_status: str
+    playback_rate: float = 1.0
+    step_count: int
+    interactions_available: List[str] = []
+    controls: Dict[str, Any] = {}
+    participant_progress: Optional[Dict[str, Any]] = None
+
+
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]
     course: Dict[str, Any]
