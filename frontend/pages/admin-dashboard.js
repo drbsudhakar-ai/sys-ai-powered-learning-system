@@ -66,6 +66,11 @@ export default function AdminDashboardPage() {
             <p className="mt-2 text-sm text-[var(--sys-gray)]">Configure assessment report email recipients.</p>
             <Link href="/admin/notifications" className="btn-primary mt-4 inline-flex no-underline">Configure</Link>
           </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Question Bank</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Author questions and run exam intelligence.</p>
+            <Link href="/question-bank" className="btn-primary mt-4 inline-flex no-underline">Open Question Bank</Link>
+          </section>
         </div>
       )}
     </div>

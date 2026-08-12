@@ -7,7 +7,7 @@ SYS AI Lecturer Backend
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app import models, database
-from app.routes import auth, courses, assessments, resources, admin, curriculum, reporting
+from app.routes import auth, courses, assessments, resources, admin, curriculum, reporting, question_bank, intelligence
 
 # Create DB tables (Alembic recommended for production migrations)
 models.Base.metadata.create_all(bind=database.engine)
@@ -46,6 +46,8 @@ app.include_router(resources.router)
 app.include_router(admin.router)
 app.include_router(curriculum.router)
 app.include_router(reporting.router)
+app.include_router(question_bank.router)
+app.include_router(intelligence.router)
 
 # =========================
 # Health Check

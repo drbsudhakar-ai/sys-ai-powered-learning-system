@@ -288,7 +288,7 @@ class SubtopicOut(SubtopicCreate):
 
 class QuestionCreate(BaseModel):
     stem: str = Field(..., min_length=1)
-    question_type: str = "MCQ"
+    question_type: str = "SINGLE_MCQ"
     difficulty: str = "MEDIUM"
     course_id: int
     subject_id: int
@@ -302,6 +302,191 @@ class QuestionOut(QuestionCreate):
 
     class Config:
         from_attributes = True
+
+
+class QuestionBankCreate(BaseModel):
+    stem: Optional[str] = None
+    question_text: Optional[str] = None
+    question_type: str = "SINGLE_MCQ"
+    difficulty: str = "MEDIUM"
+    status: str = "DRAFT"
+    course_id: int
+    subject_id: int
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    options: Optional[List[str]] = None
+    correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
+    marks: Optional[float] = 1.0
+    negative_marks: Optional[float] = 0.0
+    source: Optional[str] = None
+    source_year: Optional[int] = None
+    exam_name: Optional[str] = None
+    concept_tags: Optional[List[str]] = None
+    learning_objective: Optional[str] = None
+    shortcut: Optional[str] = None
+    alternative_solution: Optional[str] = None
+    common_traps: Optional[str] = None
+    estimated_time_seconds: Optional[int] = None
+    quality_score: Optional[float] = None
+    novelty_class: Optional[str] = "NOVEL"
+
+
+class QuestionBankUpdate(BaseModel):
+    stem: Optional[str] = None
+    question_text: Optional[str] = None
+    question_type: Optional[str] = None
+    difficulty: Optional[str] = None
+    status: Optional[str] = None
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    options: Optional[List[str]] = None
+    correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
+    marks: Optional[float] = None
+    negative_marks: Optional[float] = None
+    source: Optional[str] = None
+    source_year: Optional[int] = None
+    exam_name: Optional[str] = None
+    concept_tags: Optional[List[str]] = None
+    learning_objective: Optional[str] = None
+    shortcut: Optional[str] = None
+    alternative_solution: Optional[str] = None
+    common_traps: Optional[str] = None
+    estimated_time_seconds: Optional[int] = None
+    quality_score: Optional[float] = None
+    novelty_class: Optional[str] = None
+
+
+class QuestionBankOut(BaseModel):
+    id: int
+    stem: str
+    question_text: Optional[str] = None
+    question_type: str
+    difficulty: str
+    status: str
+    course_id: int
+    subject_id: int
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    options: Optional[List[str]] = None
+    correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
+    marks: Optional[float] = None
+    negative_marks: Optional[float] = None
+    source: Optional[str] = None
+    source_year: Optional[int] = None
+    exam_name: Optional[str] = None
+    concept_tags: Optional[List[str]] = None
+    learning_objective: Optional[str] = None
+    shortcut: Optional[str] = None
+    alternative_solution: Optional[str] = None
+    common_traps: Optional[str] = None
+    estimated_time_seconds: Optional[int] = None
+    quality_score: Optional[float] = None
+    novelty_class: Optional[str] = None
+    created_by: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SimilarityCheckIn(BaseModel):
+    course_id: int
+    text: str
+
+
+class HistoricalQuestionIn(BaseModel):
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    question_text: str
+    question_type: Optional[str] = None
+    marks: Optional[float] = None
+    difficulty: Optional[str] = None
+    concept_tags: Optional[List[str]] = None
+    linked_question_id: Optional[int] = None
+    similarity_class: Optional[str] = "CONCEPT_VARIANT"
+
+
+class HistoricalPaperCreate(BaseModel):
+    exam_name: str
+    exam_year: int
+    course_id: int
+    exam_type: Optional[str] = None
+    source: Optional[str] = None
+    questions: Optional[List[HistoricalQuestionIn]] = []
+
+
+class HistoricalPaperOut(BaseModel):
+    id: int
+    exam_name: str
+    exam_year: int
+    course_id: int
+    exam_type: Optional[str] = None
+    source: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class HistoricalQuestionOut(HistoricalQuestionIn):
+    id: int
+    paper_id: Optional[int] = None
+    fingerprint: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class HistoricalPaperDetailOut(HistoricalPaperOut):
+    questions: List[HistoricalQuestionOut] = []
+
+
+class SubjectWeightItem(BaseModel):
+    subject_id: int
+    weight_percent: float
+
+
+class SubjectWeightageBulk(BaseModel):
+    course_id: int
+    items: List[SubjectWeightItem]
+
+
+class TopicWeightItem(BaseModel):
+    topic_id: int
+    weight_percent: float
+    syllabus_importance: Optional[float] = 0.5
+
+
+class TopicWeightageBulk(BaseModel):
+    subject_id: int
+    items: List[TopicWeightItem]
+
+
+class PriorityWeightsIn(BaseModel):
+    w_historical_weightage: float = 0.25
+    w_historical_frequency: float = 0.25
+    w_concept_frequency: float = 0.15
+    w_recent_trend: float = 0.15
+    w_syllabus_importance: float = 0.10
+    w_exam_pattern: float = 0.10
+
+
+class SelectionRequest(BaseModel):
+    course_id: int
+    total_questions: int = Field(..., gt=0)
+    subject_distribution: Optional[Dict[int, int]] = None
+    topic_ids: Optional[List[int]] = None
+    difficulty_distribution: Optional[Dict[str, int]] = None
+    question_types: Optional[List[str]] = None
+    reuse_policy: Optional[str] = "MIXED"
+    reuse_mix: Optional[Dict[str, float]] = None
+    evidence_based: Optional[bool] = True
 
 class NotificationRecipientCreate(BaseModel):
     name: str

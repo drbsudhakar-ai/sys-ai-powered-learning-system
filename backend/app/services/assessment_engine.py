@@ -121,31 +121,28 @@ def assemble_questions(
     assessment: models.Assessment,
     items: List[models.AssessmentBlueprintItem],
 ) -> Tuple[List[models.Question], List[str]]:
-    """Select questions per blueprint. Returns (selected, errors)."""
+    """Select questions per blueprint. Returns (selected, errors).
+
+    Grand/Final assessments use evidence-based Question Intelligence ranking.
+    Other types use random sampling among eligible ACTIVE questions.
+    """
+    from app.services.selection_engine import select_for_blueprint_item
+
     errors = validate_blueprint(db, assessment, items)
     if errors:
         return [], errors
 
+    evidence = (assessment.assessment_type or "") in ("GRAND_TEST", "FINAL_GRAND_TEST")
     selected: List[models.Question] = []
     used_ids: set[int] = set()
 
     for item in items:
-        pool = eligible_questions(
-            db,
-            course_id=assessment.course_id,
-            subject_id=item.subject_id,
-            topic_id=item.topic_id,
-            subtopic_id=item.subtopic_id,
-            difficulty=item.difficulty,
+        picks, item_errors = select_for_blueprint_item(
+            db, assessment, item, used_ids, evidence_based=evidence
         )
-        pool = [q for q in pool if q.id not in used_ids]
-        if len(pool) < item.question_count:
-            label = f"subject={item.subject_id} topic={item.topic_id} difficulty={item.difficulty}"
-            errors.append(
-                f"Insufficient questions for {label}: need {item.question_count}, available {len(pool)}"
-            )
+        if item_errors:
+            errors.extend(item_errors)
             continue
-        picks = random.sample(pool, item.question_count)
         for p in picks:
             used_ids.add(p.id)
             selected.append(p)

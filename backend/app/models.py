@@ -172,16 +172,36 @@ class Question(Base):
     __tablename__ = "questions"
 
     id = Column(Integer, primary_key=True, index=True)
-    stem = Column(Text, nullable=False)
-    question_type = Column(String(50), nullable=False, server_default="MCQ")
+    stem = Column(Text, nullable=False)  # question_text
+    question_type = Column(String(50), nullable=False, server_default="SINGLE_MCQ")
     difficulty = Column(String(20), nullable=False, server_default="MEDIUM")
-    status = Column(String(20), nullable=False, server_default="ACTIVE")
+    status = Column(String(20), nullable=False, server_default="DRAFT")
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
     subtopic_id = Column(Integer, ForeignKey("subtopics.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # P0-010 intelligence fields
+    options = Column(JSON, nullable=True)
+    correct_answer = Column(Text, nullable=True)
+    explanation = Column(Text, nullable=True)
+    marks = Column(Float, nullable=True, default=1.0)
+    negative_marks = Column(Float, nullable=True, default=0.0)
+    source = Column(String(100), nullable=True)
+    source_year = Column(Integer, nullable=True)
+    exam_name = Column(String(200), nullable=True)
+    concept_tags = Column(JSON, nullable=True)
+    learning_objective = Column(String(500), nullable=True)
+    shortcut = Column(Text, nullable=True)
+    alternative_solution = Column(Text, nullable=True)
+    common_traps = Column(Text, nullable=True)
+    estimated_time_seconds = Column(Integer, nullable=True)
+    quality_score = Column(Float, nullable=True)
+    similarity_fingerprint = Column(String(64), nullable=True, index=True)
+    novelty_class = Column(String(30), nullable=True, server_default="NOVEL")
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     course = relationship("Course", back_populates="questions")
     subject = relationship("Subject", back_populates="questions")
@@ -400,6 +420,102 @@ class Notification(Base):
     retry_count = Column(Integer, nullable=False, server_default="0", default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     sent_at = Column(DateTime(timezone=True), nullable=True)
+
+
+# =========================
+# Question Intelligence (P0-010)
+# =========================
+
+class HistoricalExamPaper(Base):
+    __tablename__ = "historical_exam_papers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exam_name = Column(String(200), nullable=False)
+    exam_year = Column(Integer, nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    exam_type = Column(String(100), nullable=True)
+    source = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    course = relationship("Course")
+    questions = relationship(
+        "HistoricalExamQuestion",
+        back_populates="paper",
+        cascade="all, delete-orphan",
+    )
+
+
+class HistoricalExamQuestion(Base):
+    __tablename__ = "historical_exam_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paper_id = Column(Integer, ForeignKey("historical_exam_papers.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
+    subtopic_id = Column(Integer, ForeignKey("subtopics.id"), nullable=True)
+    question_text = Column(Text, nullable=False)
+    question_type = Column(String(50), nullable=True)
+    marks = Column(Float, nullable=True)
+    difficulty = Column(String(20), nullable=True)
+    concept_tags = Column(JSON, nullable=True)
+    linked_question_id = Column(Integer, ForeignKey("questions.id"), nullable=True)
+    similarity_class = Column(String(30), nullable=True, server_default="CONCEPT_VARIANT")
+    fingerprint = Column(String(64), nullable=True, index=True)
+
+    paper = relationship("HistoricalExamPaper", back_populates="questions")
+
+
+class SubjectWeightage(Base):
+    __tablename__ = "subject_weightages"
+    __table_args__ = (UniqueConstraint("course_id", "subject_id", name="uq_course_subject_weight"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    weight_percent = Column(Float, nullable=False)
+
+
+class TopicWeightage(Base):
+    __tablename__ = "topic_weightages"
+    __table_args__ = (UniqueConstraint("subject_id", "topic_id", name="uq_subject_topic_weight"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
+    weight_percent = Column(Float, nullable=False)
+    syllabus_importance = Column(Float, nullable=True, default=0.5)
+
+
+class PriorityWeightConfig(Base):
+    """Configurable factor weights for topic priority (must sum ≈ 1.0)."""
+    __tablename__ = "priority_weight_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True, unique=True)
+    w_historical_weightage = Column(Float, nullable=False, default=0.25)
+    w_historical_frequency = Column(Float, nullable=False, default=0.25)
+    w_concept_frequency = Column(Float, nullable=False, default=0.15)
+    w_recent_trend = Column(Float, nullable=False, default=0.15)
+    w_syllabus_importance = Column(Float, nullable=False, default=0.10)
+    w_exam_pattern = Column(Float, nullable=False, default=0.10)
+
+
+class TopicIntelligenceSnapshot(Base):
+    __tablename__ = "topic_intelligence_snapshots"
+    __table_args__ = (UniqueConstraint("topic_id", "course_id", name="uq_topic_course_intel"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    historical_frequency = Column(Float, nullable=True)
+    avg_marks_weightage = Column(Float, nullable=True)
+    recent_trend = Column(String(20), nullable=True)
+    priority_score = Column(Float, nullable=True)
+    priority_label = Column(String(20), nullable=True)
+    contributing_factors = Column(JSON, nullable=True)
+    question_count = Column(Integer, nullable=True, default=0)
+    frequently_tested_concepts = Column(JSON, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 # =========================

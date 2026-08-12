@@ -102,4 +102,32 @@ export const updateNotificationRecipient = (id, data) =>
 export const listNotifications = () => API.get("/notifications");
 export const retryNotification = (id) => API.post(`/notifications/${id}/retry`);
 
+// Question Bank / Intelligence (P0-010)
+export const searchQuestionBank = (params) => API.get("/question-bank/questions", { params });
+export const getQuestionBankItem = (id) => API.get(`/question-bank/questions/${id}`);
+export const createQuestionBankItem = (data) => API.post("/question-bank/questions", data);
+export const updateQuestionBankItem = (id, data) => API.put(`/question-bank/questions/${id}`, data);
+export const duplicateQuestionBankItem = (id) => API.post(`/question-bank/questions/${id}/duplicate`);
+export const archiveQuestionBankItem = (id) => API.post(`/question-bank/questions/${id}/archive`);
+export const checkQuestionSimilarity = (data) => API.post("/question-bank/questions/check-similarity", data);
+export const getQuestionBankStats = (params) => API.get("/question-bank/stats", { params });
+
+export const listHistoricalPapers = (params) => API.get("/historical-papers", { params });
+export const createHistoricalPaper = (data) => API.post("/historical-papers", data);
+export const getHistoricalPaper = (id) => API.get(`/historical-papers/${id}`);
+export const runHistoricalAnalysis = (courseId) => API.post(`/historical-analysis/${courseId}`);
+
+export const getSubjectWeightages = (params) => API.get("/weightages/subjects", { params });
+export const setSubjectWeightages = (data) => API.put("/weightages/subjects", data);
+export const getTopicWeightages = (params) => API.get("/weightages/topics", { params });
+export const setTopicWeightages = (data) => API.put("/weightages/topics", data);
+export const setPriorityWeights = (courseId, data) => API.put(`/priority-weights/${courseId}`, data);
+
+export const getTopicIntelligence = (topicId) => API.get(`/academic-intelligence/topics/${topicId}`);
+export const getCourseTopicIntelligence = (courseId) =>
+  API.get(`/academic-intelligence/courses/${courseId}/topics`);
+export const getQuestionImportance = (id) =>
+  API.get(`/academic-intelligence/questions/${id}/importance`);
+export const selectQuestions = (data) => API.post("/question-selection", data);
+
 export default API;

@@ -33,6 +33,12 @@ from app.models import (
     PerformanceRecord,
     NotificationRecipient,
     Notification,
+    HistoricalExamPaper,
+    HistoricalExamQuestion,
+    SubjectWeightage,
+    TopicWeightage,
+    PriorityWeightConfig,
+    TopicIntelligenceSnapshot,
     Resource,
 )
 

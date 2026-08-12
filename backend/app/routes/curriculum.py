@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app import models, schemas, database
-from app.academic_auth import require_assessment_designer, is_admin
+from app.academic_auth import require_assessment_designer, is_admin, require_question_author
 from app.constants import DIFFICULTIES
 from app.routes.auth import get_current_user, require_roles
+from app.services.similarity import fingerprint
 
 router = APIRouter(tags=["Curriculum"])
 _staff = require_roles("admin", "faculty")
@@ -106,7 +107,7 @@ def create_question(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(_staff),
 ):
-    require_assessment_designer(db, current_user, payload.course_id)
+    require_question_author(db, current_user, payload.course_id, payload.subject_id)
     if payload.difficulty not in DIFFICULTIES:
         raise HTTPException(status_code=422, detail="Invalid difficulty")
     subject = db.query(models.Subject).filter(models.Subject.id == payload.subject_id).first()
@@ -122,12 +123,15 @@ def create_question(
         stem=payload.stem,
         question_type=payload.question_type,
         difficulty=payload.difficulty,
-        status=payload.status,
+        status=payload.status or "ACTIVE",
         course_id=payload.course_id,
         subject_id=payload.subject_id,
         topic_id=payload.topic_id,
         subtopic_id=payload.subtopic_id,
         created_by=current_user.id,
+        similarity_fingerprint=fingerprint(payload.stem),
+        novelty_class="NOVEL",
+        marks=1.0,
     )
     db.add(q)
     db.commit()
