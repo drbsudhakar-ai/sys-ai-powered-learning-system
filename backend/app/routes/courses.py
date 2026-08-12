@@ -34,6 +34,8 @@ def create_course(
     new_course = models.Course(
         title=course.title,
         description=course.description,
+        syllabus_url=course.syllabus_url,
+        resources_url=course.resources_url,
         created_by=current_user.id,
     )
     db.add(new_course)
@@ -85,6 +87,8 @@ def update_course(
 
     course.title = updated_course.title
     course.description = updated_course.description
+    course.syllabus_url = updated_course.syllabus_url
+    course.resources_url = updated_course.resources_url
 
     db.commit()
     db.refresh(course)

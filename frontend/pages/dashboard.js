@@ -70,7 +70,12 @@ export default function DashboardPage() {
 
           {/* Course Overview */}
           <section className="mb-8">
-            <h3 className="text-lg font-bold text-sys-gray mb-2">Your Courses</h3>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold text-sys-gray">Your Courses</h3>
+              <a href="/courses" className="text-sm font-semibold text-sys-blue underline">
+                Manage courses
+              </a>
+            </div>
             {courses.length > 0 ? (
               <ul className="space-y-4">
                 {courses.map((course) => (

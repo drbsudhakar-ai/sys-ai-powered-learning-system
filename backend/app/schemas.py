@@ -8,7 +8,7 @@ Defines request and response models for:
  - Resources
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -64,14 +64,17 @@ class LoginRequest(BaseModel):
 # Course Schemas
 # =========================
 class CourseBase(BaseModel):
-    title: str
-    description: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=255)
+    resources_url: Optional[str] = Field(None, max_length=255)
 
 class CourseCreate(CourseBase):
     pass
 
 class CourseOut(CourseBase):
     id: int
+    created_by: Optional[int] = None
     created_at: datetime
 
     class Config:
