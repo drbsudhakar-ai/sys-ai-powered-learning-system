@@ -18,6 +18,10 @@ export function isStaffRole(role) {
   return r === "admin" || r === "faculty";
 }
 
+export function isAdminRole(role) {
+  return (role || "").toLowerCase() === "admin";
+}
+
 export function redirectToLogin() {
   if (typeof window === "undefined") return;
   window.location.href = "/login";

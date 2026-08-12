@@ -20,6 +20,8 @@ from app.models import (
     Course,
     StudentCourseEnrollment,
     FacultyCourseAssignment,
+    Subject,
+    SubjectExpertAssignment,
     Assessment,
     Resource,
 )

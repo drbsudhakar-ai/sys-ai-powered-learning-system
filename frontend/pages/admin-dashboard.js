@@ -1,90 +1,58 @@
-/**
- * Admin Dashboard Page for SYS AI Lecturer System
- * -----------------------------------------------
- * This page serves as the main hub for administrators.
- * Features:
- *  - SYS Logo + Tagline at the top
- *  - Admin panels for:
- *      • Course Management
- *      • Student Management
- *      • Assessment Management
- *  - Quick action buttons for adding/editing/removing entities
- *  - Developer credit line in footer
- * 
- * Accessibility:
- *  - ARIA labels for interactive elements
- *  - Semantic HTML structure
- */
-
-import { useState } from 'react';
-import Layout from "../components/Layout";
-
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { getMe, getApiErrorMessage } from "../src/api";
+import { clearSession, getToken, isAdminRole, redirectToLogin } from "../src/auth";
 
 export default function AdminDashboardPage() {
-  // Example state for demo purposes
-  const [courses] = useState(["Mathematics", "Physics", "English"]);
-  const [students] = useState(["Alice", "Bob", "Charlie"]);
-  const [assessments] = useState(["Math Test – Aug 15", "Physics Quiz – Aug 20"]);
+  const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      if (!getToken()) return redirectToLogin();
+      try {
+        const me = await getMe();
+        if (!isAdminRole(me.data.role)) {
+          setError("Admin access required.");
+        }
+      } catch (err) {
+        if (err.response?.status === 401) {
+          clearSession();
+          redirectToLogin();
+          return;
+        }
+        setError(getApiErrorMessage(err));
+      } finally {
+        setReady(true);
+      }
+    })();
+  }, []);
 
   return (
-    <Layout>
-    <div className="min-h-screen bg-sys-white flex flex-col">
-      
-   
-
-      {/* =========================
-          Admin Dashboard Content
-          ========================= */}
-      <main className="flex-1 p-6 grid gap-6 md:grid-cols-3">
-        
-        {/* Course Management Panel */}
-        <section className="sys-card">
-          <h3 className="text-lg font-bold text-sys-blue mb-4">Course Management</h3>
-          <ul className="list-disc list-inside text-sm mb-4">
-            {courses.map((course, index) => (
-              <li key={index}>{course}</li>
-            ))}
-          </ul>
-          <div className="flex gap-2">
-            <button className="btn-primary" aria-label="Add Course">Add</button>
-            <button className="btn-secondary" aria-label="Edit Course">Edit</button>
-            <button className="btn-secondary" aria-label="Remove Course">Remove</button>
-          </div>
-        </section>
-
-        {/* Student Management Panel */}
-        <section className="sys-card">
-          <h3 className="text-lg font-bold text-sys-blue mb-4">Student Management</h3>
-          <ul className="list-disc list-inside text-sm mb-4">
-            {students.map((student, index) => (
-              <li key={index}>{student}</li>
-            ))}
-          </ul>
-          <div className="flex gap-2">
-            <button className="btn-primary" aria-label="Add Student">Add</button>
-            <button className="btn-secondary" aria-label="Edit Student">Edit</button>
-            <button className="btn-secondary" aria-label="Remove Student">Remove</button>
-          </div>
-        </section>
-
-        {/* Assessment Management Panel */}
-        <section className="sys-card">
-          <h3 className="text-lg font-bold text-sys-blue mb-4">Assessment Management</h3>
-          <ul className="list-disc list-inside text-sm mb-4">
-            {assessments.map((assessment, index) => (
-              <li key={index}>{assessment}</li>
-            ))}
-          </ul>
-          <div className="flex gap-2">
-            <button className="btn-primary" aria-label="Add Assessment">Add</button>
-            <button className="btn-secondary" aria-label="Edit Assessment">Edit</button>
-            <button className="btn-secondary" aria-label="Remove Assessment">Remove</button>
-          </div>
-        </section>
-      </main>
-
-    
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <p className="sys-tagline !text-left !text-base">Admin</p>
+      <h1 className="text-2xl font-bold text-[var(--sys-blue)]">Admin Dashboard</h1>
+      {!ready && <p className="sys-card mt-6">Loading…</p>}
+      {ready && error && <p className="sys-card mt-6 text-red-600">{error}</p>}
+      {ready && !error && (
+        <div className="mt-6 grid gap-6 md:grid-cols-3">
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Courses</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Manage SYS courses.</p>
+            <Link href="/courses" className="btn-primary mt-4 inline-flex no-underline">Open Courses</Link>
+          </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Students</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Create and manage student accounts.</p>
+            <Link href="/admin/students" className="btn-primary mt-4 inline-flex no-underline">Manage Students</Link>
+          </section>
+          <section className="sys-card !max-w-none">
+            <h2 className="text-lg font-bold text-[var(--sys-blue)]">Faculty</h2>
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">Manage faculty and academic responsibilities.</p>
+            <Link href="/admin/faculty" className="btn-primary mt-4 inline-flex no-underline">Manage Faculty</Link>
+          </section>
+        </div>
+      )}
     </div>
-    </Layout>
   );
 }

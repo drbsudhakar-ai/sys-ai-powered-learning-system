@@ -49,11 +49,92 @@ class UserOut(BaseModel):
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     photo_url: Optional[str] = None
+    is_active: bool = True
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class AdminUserCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    roll_number: Optional[str] = None
+    employee_code: Optional[str] = None
+    photo_url: Optional[str] = None
+
+
+class AdminUserUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    email: Optional[EmailStr] = None
+    roll_number: Optional[str] = None
+    employee_code: Optional[str] = None
+    photo_url: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=6)
+
+
+class CourseCoordinatorOut(BaseModel):
+    id: int
+    faculty_id: int
+    faculty_name: str
+    faculty_email: EmailStr
+    course_id: int
+    course_title: str
+    assigned_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CourseCoordinatorCreate(BaseModel):
+    faculty_id: int
+    course_id: int
+
+
+class SubjectBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    course_id: Optional[int] = None
+
+
+class SubjectCreate(SubjectBase):
+    pass
+
+
+class SubjectOut(SubjectBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectExpertOut(BaseModel):
+    id: int
+    faculty_id: int
+    faculty_name: str
+    faculty_email: EmailStr
+    subject_id: int
+    subject_name: str
+    assigned_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectExpertCreate(BaseModel):
+    faculty_id: int
+    subject_id: int
+
+
+class FacultyResponsibilitiesOut(BaseModel):
+    faculty: UserOut
+    course_coordinator_assignments: List[CourseCoordinatorOut] = []
+    subject_expert_assignments: List[SubjectExpertOut] = []
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -76,6 +157,7 @@ class CourseOut(CourseBase):
     id: int
     created_by: Optional[int] = None
     created_at: datetime
+    course_coordinators: List[CourseCoordinatorOut] = []
 
     class Config:
         from_attributes = True

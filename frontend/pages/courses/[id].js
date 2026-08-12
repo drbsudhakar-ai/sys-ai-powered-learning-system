@@ -117,6 +117,14 @@ export default function CourseDetailsPage() {
                 </dd>
               </div>
             )}
+            <div>
+              <dt className="font-semibold text-[var(--sys-blue)]">Course Coordinators</dt>
+              <dd>
+                {(course.course_coordinators || []).length === 0
+                  ? "None assigned"
+                  : (course.course_coordinators || []).map((c) => c.faculty_name).join(", ")}
+              </dd>
+            </div>
             {course.created_at && (
               <div>
                 <dt className="font-semibold text-[var(--sys-blue)]">Created</dt>

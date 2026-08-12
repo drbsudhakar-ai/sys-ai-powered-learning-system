@@ -22,6 +22,38 @@ router = APIRouter(prefix="/courses", tags=["Courses"])
 
 _staff = require_roles("admin", "faculty")
 
+
+def _course_out(course: models.Course, db: Session) -> schemas.CourseOut:
+    coords = (
+        db.query(models.FacultyCourseAssignment)
+        .filter(models.FacultyCourseAssignment.course_id == course.id)
+        .all()
+    )
+    coordinators = []
+    for row in coords:
+        faculty = db.query(models.User).filter(models.User.id == row.faculty_id).first()
+        coordinators.append(
+            schemas.CourseCoordinatorOut(
+                id=row.id,
+                faculty_id=row.faculty_id,
+                faculty_name=faculty.name if faculty else "",
+                faculty_email=faculty.email if faculty else "unknown@example.com",
+                course_id=row.course_id,
+                course_title=course.title,
+                assigned_at=row.assigned_at,
+            )
+        )
+    return schemas.CourseOut(
+        id=course.id,
+        title=course.title,
+        description=course.description,
+        syllabus_url=course.syllabus_url,
+        resources_url=course.resources_url,
+        created_by=course.created_by,
+        created_at=course.created_at,
+        course_coordinators=coordinators,
+    )
+
 # =========================
 # Create Course
 # =========================
@@ -41,7 +73,7 @@ def create_course(
     db.add(new_course)
     db.commit()
     db.refresh(new_course)
-    return new_course
+    return _course_out(new_course, db)
 
 
 # =========================
@@ -53,7 +85,7 @@ def get_courses(
     current_user: models.User = Depends(get_current_user),
 ):
     courses = db.query(models.Course).all()
-    return courses
+    return [_course_out(c, db) for c in courses]
 
 
 # =========================
@@ -68,7 +100,7 @@ def get_course(
     course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    return course
+    return _course_out(course, db)
 
 
 # =========================
@@ -92,7 +124,7 @@ def update_course(
 
     db.commit()
     db.refresh(course)
-    return course
+    return _course_out(course, db)
 
 
 # =========================

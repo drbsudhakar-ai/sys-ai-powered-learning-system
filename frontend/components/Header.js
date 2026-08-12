@@ -144,6 +144,23 @@ export default function Header() {
             Courses
           </Link>
 
+          <Link
+            href="/admin-dashboard"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            Admin
+          </Link>
+
           <a
             href="/#about"
             className="
