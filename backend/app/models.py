@@ -675,6 +675,148 @@ class TopicIntelligenceSnapshot(Base):
 
 
 # =========================
+# Learning Sessions (P0-013)
+# =========================
+
+class LearningSession(Base):
+    """Reusable multi-mode learning session (COMMON / INDIVIDUAL / HYBRID)."""
+    __tablename__ = "learning_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    mode = Column(String(20), nullable=False)  # COMMON | INDIVIDUAL | HYBRID
+    status = Column(String(20), nullable=False, server_default="DRAFT", default="DRAFT")
+
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True, index=True)
+    subtopic_id = Column(Integer, ForeignKey("subtopics.id"), nullable=True)
+
+    facilitator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    scheduled_start = Column(DateTime(timezone=True), nullable=True)
+    scheduled_end = Column(DateTime(timezone=True), nullable=True)
+    actual_start = Column(DateTime(timezone=True), nullable=True)
+    actual_end = Column(DateTime(timezone=True), nullable=True)
+
+    outcome_summary = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    course = relationship("Course")
+    subject = relationship("Subject")
+    topic = relationship("Topic")
+    subtopic = relationship("Subtopic")
+    facilitator = relationship("User", foreign_keys=[facilitator_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    participants = relationship(
+        "LearningSessionParticipant",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    objectives = relationship(
+        "LearningSessionObjective",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    activities = relationship(
+        "LearningSessionActivity",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    evidence = relationship(
+        "LearningEvidence",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+
+
+class LearningSessionParticipant(Base):
+    __tablename__ = "learning_session_participants"
+    __table_args__ = (
+        UniqueConstraint("session_id", "user_id", name="uq_learning_session_participant"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String(30), nullable=False, server_default="STUDENT", default="STUDENT")
+    status = Column(String(20), nullable=False, server_default="INVITED", default="INVITED")
+    joined_at = Column(DateTime(timezone=True), nullable=True)
+    left_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("LearningSession", back_populates="participants")
+    user = relationship("User")
+
+
+class LearningSessionObjective(Base):
+    __tablename__ = "learning_session_objectives"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=False, index=True)
+    statement = Column(Text, nullable=False)
+    sequence = Column(Integer, nullable=False, default=1)
+    status = Column(String(20), nullable=False, server_default="PENDING", default="PENDING")
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
+    subtopic_id = Column(Integer, ForeignKey("subtopics.id"), nullable=True)
+    concept_tag = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("LearningSession", back_populates="objectives")
+
+
+class LearningSessionActivity(Base):
+    __tablename__ = "learning_session_activities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=False, index=True)
+    activity_type = Column(String(50), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    sequence = Column(Integer, nullable=False, default=1)
+    # COMMON = all participants; PARTICIPANT_SPECIFIC = one participant (hybrid/individual)
+    scope = Column(String(30), nullable=False, server_default="COMMON", default="COMMON")
+    participant_id = Column(
+        Integer, ForeignKey("learning_session_participants.id"), nullable=True, index=True
+    )
+    status = Column(String(20), nullable=False, server_default="PENDING", default="PENDING")
+    payload = Column(JSON, nullable=True)
+    # Optional link to existing assessment (P0-010/011) — no duplicate attempt engine
+    assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    session = relationship("LearningSession", back_populates="activities")
+    participant = relationship("LearningSessionParticipant", foreign_keys=[participant_id])
+    assessment = relationship("Assessment")
+
+
+class LearningEvidence(Base):
+    """Session learning evidence foundation for future P0-012 consumption."""
+    __tablename__ = "learning_evidence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    participant_id = Column(Integer, ForeignKey("learning_session_participants.id"), nullable=True)
+    activity_id = Column(Integer, ForeignKey("learning_session_activities.id"), nullable=True)
+    objective_id = Column(Integer, ForeignKey("learning_session_objectives.id"), nullable=True)
+    event_type = Column(String(50), nullable=False, index=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("LearningSession", back_populates="evidence")
+    user = relationship("User")
+    participant = relationship("LearningSessionParticipant", foreign_keys=[participant_id])
+    activity = relationship("LearningSessionActivity", foreign_keys=[activity_id])
+    objective = relationship("LearningSessionObjective", foreign_keys=[objective_id])
+
+
+# =========================
 # Resource Model
 # =========================
 

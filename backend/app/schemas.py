@@ -563,6 +563,145 @@ class NotificationPreferenceIn(BaseModel):
     in_app_enabled: Optional[bool] = None
     sms_enabled: Optional[bool] = None
 
+
+# =========================
+# Learning Sessions (P0-013.1 domain schemas)
+# =========================
+class LearningSessionCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    mode: str
+    course_id: int
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    facilitator_id: Optional[int] = None
+    scheduled_start: Optional[datetime] = None
+    scheduled_end: Optional[datetime] = None
+    primary_student_id: Optional[int] = None
+
+
+class LearningSessionStatusChange(BaseModel):
+    status: str
+
+
+class LearningParticipantIn(BaseModel):
+    user_id: int
+    role: str = "STUDENT"
+
+
+class LearningObjectiveIn(BaseModel):
+    statement: str = Field(..., min_length=1)
+    sequence: Optional[int] = None
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    concept_tag: Optional[str] = None
+
+
+class LearningActivityIn(BaseModel):
+    activity_type: str
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    sequence: Optional[int] = None
+    scope: str = "COMMON"
+    participant_id: Optional[int] = None
+    payload: Optional[Dict[str, Any]] = None
+    assessment_id: Optional[int] = None
+
+
+class LearningEvidenceIn(BaseModel):
+    event_type: str
+    user_id: Optional[int] = None
+    participant_id: Optional[int] = None
+    activity_id: Optional[int] = None
+    objective_id: Optional[int] = None
+    payload: Optional[Dict[str, Any]] = None
+
+
+class LearningParticipantOut(BaseModel):
+    id: int
+    user_id: int
+    role: str
+    status: str
+    joined_at: Optional[datetime] = None
+    left_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LearningObjectiveOut(BaseModel):
+    id: int
+    statement: str
+    sequence: int
+    status: str
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    concept_tag: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LearningActivityOut(BaseModel):
+    id: int
+    activity_type: str
+    title: str
+    description: Optional[str] = None
+    sequence: int
+    scope: str
+    participant_id: Optional[int] = None
+    status: str
+    assessment_id: Optional[int] = None
+    payload: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LearningEvidenceOut(BaseModel):
+    id: int
+    session_id: int
+    user_id: Optional[int] = None
+    participant_id: Optional[int] = None
+    activity_id: Optional[int] = None
+    objective_id: Optional[int] = None
+    event_type: str
+    payload: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LearningSessionOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    mode: str
+    status: str
+    course_id: int
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    subtopic_id: Optional[int] = None
+    facilitator_id: Optional[int] = None
+    created_by: int
+    scheduled_start: Optional[datetime] = None
+    scheduled_end: Optional[datetime] = None
+    actual_start: Optional[datetime] = None
+    actual_end: Optional[datetime] = None
+    outcome_summary: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    participants: List[LearningParticipantOut] = []
+    objectives: List[LearningObjectiveOut] = []
+    activities: List[LearningActivityOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]
     course: Dict[str, Any]

@@ -45,6 +45,11 @@ from app.models import (
     PerformanceAnalysis,
     LearningGap,
     StudentLearningProfile,
+    LearningSession,
+    LearningSessionParticipant,
+    LearningSessionObjective,
+    LearningSessionActivity,
+    LearningEvidence,
     Resource,
 )
 
