@@ -1,4 +1,6 @@
-"""P0-013.2 Learning Session Management APIs — thin HTTP over domain service."""
+"""P0-013.2 Learning Session Management APIs — thin HTTP over domain service.
+P0-013.3 makes list/get mode-aware (activity visibility, participant progress).
+"""
 
 from typing import List, Optional
 
@@ -12,8 +14,15 @@ from app.services import learning_sessions as ls
 router = APIRouter(prefix="/learning-sessions", tags=["Learning Sessions"])
 
 
-def _out(session: models.LearningSession) -> schemas.LearningSessionOut:
-    return schemas.LearningSessionOut.model_validate(ls.session_to_dict(session))
+def _out(
+    session: models.LearningSession,
+    *,
+    viewer: Optional[models.User] = None,
+    db: Optional[Session] = None,
+) -> schemas.LearningSessionOut:
+    return schemas.LearningSessionOut.model_validate(
+        ls.session_to_dict(session, viewer=viewer, db=db)
+    )
 
 
 @router.post("", response_model=schemas.LearningSessionOut, status_code=status.HTTP_201_CREATED)
@@ -42,7 +51,7 @@ def create_learning_session(
         scheduled_end=payload.scheduled_end,
         primary_student_id=payload.primary_student_id,
     )
-    return _out(session)
+    return _out(session, viewer=current_user, db=db)
 
 
 @router.get("", response_model=List[schemas.LearningSessionOut])
@@ -64,7 +73,7 @@ def list_learning_sessions(
         mode=mode,
         status_filter=status_filter,
     )
-    return [_out(s) for s in sessions]
+    return [_out(s, viewer=current_user, db=db) for s in sessions]
 
 
 @router.get("/{session_id}", response_model=schemas.LearningSessionOut)
@@ -75,7 +84,7 @@ def get_learning_session(
 ):
     session = ls.get_session(db, session_id)
     ls.require_view_session(db, current_user, session)
-    return _out(session)
+    return _out(session, viewer=current_user, db=db)
 
 
 @router.patch("/{session_id}", response_model=schemas.LearningSessionOut)
@@ -91,7 +100,7 @@ def update_learning_session(
         if key in data:
             kwargs[key] = data[key]
     session = ls.update_session(db, current_user, session_id, **kwargs)
-    return _out(session)
+    return _out(session, viewer=current_user, db=db)
 
 
 @router.post("/{session_id}/transition", response_model=schemas.LearningSessionOut)
@@ -102,11 +111,11 @@ def transition_learning_session(
     current_user: models.User = Depends(get_current_user),
 ):
     session = ls.transition_status(db, current_user, session_id, payload.status)
-    return _out(session)
+    return _out(session, viewer=current_user, db=db)
 
 
 def _lifecycle(db, user, session_id: int, status_name: str):
-    return _out(ls.transition_status(db, user, session_id, status_name))
+    return _out(ls.transition_status(db, user, session_id, status_name), viewer=user, db=db)
 
 
 @router.post("/{session_id}/start", response_model=schemas.LearningSessionOut)
@@ -115,7 +124,7 @@ def start_session(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _out(ls.start_session_flow(db, current_user, session_id))
+    return _out(ls.start_session_flow(db, current_user, session_id), viewer=current_user, db=db)
 
 
 @router.post("/{session_id}/pause", response_model=schemas.LearningSessionOut)
@@ -193,6 +202,22 @@ def remove_participant(
     return ls.remove_participant(db, current_user, session_id, participant_id)
 
 
+@router.patch(
+    "/{session_id}/participants/{participant_id}",
+    response_model=schemas.LearningParticipantOut,
+)
+def patch_participant_status(
+    session_id: int,
+    participant_id: int,
+    payload: schemas.LearningParticipantStatusChange,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return ls.set_participant_status(
+        db, current_user, session_id, participant_id, payload.status
+    )
+
+
 # ---- Objectives ----
 
 @router.get("/{session_id}/objectives", response_model=List[schemas.LearningObjectiveOut])
@@ -248,9 +273,16 @@ def list_activities(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    session = ls.get_session(db, session_id)
-    ls.require_view_session(db, current_user, session)
-    return sorted(session.activities or [], key=lambda a: a.sequence)
+    return ls.list_activities_for_user(db, current_user, session_id)
+
+
+@router.get("/{session_id}/progress", response_model=schemas.LearningSessionProgressOut)
+def get_session_progress(
+    session_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return ls.list_session_progress(db, current_user, session_id)
 
 
 @router.post(

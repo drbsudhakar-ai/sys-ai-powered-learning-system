@@ -191,6 +191,7 @@ LEARNING_PARTICIPANT_STATUSES = (
     "ACTIVE",
     "LEFT",
     "REMOVED",
+    "COMPLETED",  # participant-level completion (distinct from session status)
 )
 
 LEARNING_ACTIVITY_TYPES = (

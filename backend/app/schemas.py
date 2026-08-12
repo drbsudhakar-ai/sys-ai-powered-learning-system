@@ -600,6 +600,10 @@ class LearningParticipantIn(BaseModel):
     role: str = "STUDENT"
 
 
+class LearningParticipantStatusChange(BaseModel):
+    status: str
+
+
 class LearningObjectiveIn(BaseModel):
     statement: str = Field(..., min_length=1)
     sequence: Optional[int] = None
@@ -718,6 +722,26 @@ class LearningSessionOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LearningParticipantProgressOut(BaseModel):
+    participant_id: int
+    user_id: int
+    role: str
+    participant_status: str
+    progress_status: str
+    assigned_activities: int
+    completed_activities: int
+    percent_complete: float
+    session_status: str
+    note: Optional[str] = None
+
+
+class LearningSessionProgressOut(BaseModel):
+    session_id: int
+    mode: str
+    session_status: str
+    participants: List[LearningParticipantProgressOut] = []
 
 
 class PerformanceSheetOut(BaseModel):

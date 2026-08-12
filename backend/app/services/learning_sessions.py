@@ -113,6 +113,180 @@ def require_manage_session(db: Session, user: models.User, session: models.Learn
     )
 
 
+def _can_manage(db: Session, user: models.User, session: models.LearningSession) -> bool:
+    try:
+        require_manage_session(db, user, session)
+        return True
+    except HTTPException:
+        return False
+
+
+def get_participant_row(
+    db: Session, session_id: int, *, user_id: Optional[int] = None, participant_id: Optional[int] = None
+) -> Optional[models.LearningSessionParticipant]:
+    q = db.query(models.LearningSessionParticipant).filter(
+        models.LearningSessionParticipant.session_id == session_id,
+        models.LearningSessionParticipant.status.notin_(("REMOVED",)),
+    )
+    if participant_id is not None:
+        q = q.filter(models.LearningSessionParticipant.id == participant_id)
+    if user_id is not None:
+        q = q.filter(models.LearningSessionParticipant.user_id == user_id)
+    return q.first()
+
+
+def activity_visible_to_user(
+    db: Session,
+    user: models.User,
+    session: models.LearningSession,
+    activity: models.LearningSessionActivity,
+) -> bool:
+    """COMMON activities are visible to all authorized session viewers.
+    PARTICIPANT_SPECIFIC activities are visible only to the target student (or managers).
+    """
+    if not can_view_session(db, user, session):
+        return False
+    if _can_manage(db, user, session) or is_admin(user):
+        return True
+    if (activity.scope or "COMMON").upper() == "COMMON":
+        return True
+    # Participant-specific: only the assigned participant
+    if not activity.participant_id:
+        return False
+    part = get_participant_row(db, session.id, participant_id=activity.participant_id)
+    return bool(part and part.user_id == user.id)
+
+
+def list_activities_for_user(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+) -> List[models.LearningSessionActivity]:
+    session = get_session(db, session_id)
+    require_view_session(db, actor, session)
+    activities = sorted(session.activities or [], key=lambda a: (a.sequence, a.id))
+    return [a for a in activities if activity_visible_to_user(db, actor, session, a)]
+
+
+def assigned_activities_for_participant(
+    session: models.LearningSession,
+    participant: models.LearningSessionParticipant,
+) -> List[models.LearningSessionActivity]:
+    out = []
+    for a in sorted(session.activities or [], key=lambda x: (x.sequence, x.id)):
+        scope = (a.scope or "COMMON").upper()
+        if scope == "COMMON":
+            out.append(a)
+        elif scope == "PARTICIPANT_SPECIFIC" and a.participant_id == participant.id:
+            out.append(a)
+    return out
+
+
+def compute_participant_progress(
+    db: Session,
+    session: models.LearningSession,
+    participant: models.LearningSessionParticipant,
+) -> Dict[str, Any]:
+    """Participant progress from assigned activities + evidence (not session status)."""
+    assigned = assigned_activities_for_participant(session, participant)
+    evidence = (
+        db.query(models.LearningEvidence)
+        .filter(
+            models.LearningEvidence.session_id == session.id,
+            models.LearningEvidence.user_id == participant.user_id,
+            models.LearningEvidence.event_type == "ACTIVITY_COMPLETED",
+        )
+        .all()
+    )
+    completed_ids = {e.activity_id for e in evidence if e.activity_id}
+    completed = [a for a in assigned if a.id in completed_ids]
+    total = len(assigned)
+    done = len(completed)
+    pct = round(100.0 * done / total, 2) if total else 0.0
+    if participant.status == "COMPLETED" or (total > 0 and done == total):
+        progress_status = "COMPLETED"
+    elif done > 0 or participant.status == "ACTIVE":
+        progress_status = "IN_PROGRESS"
+    elif participant.status in ("INVITED", "JOINED"):
+        progress_status = participant.status
+    else:
+        progress_status = participant.status
+    return {
+        "participant_id": participant.id,
+        "user_id": participant.user_id,
+        "role": participant.role,
+        "participant_status": participant.status,
+        "progress_status": progress_status,
+        "assigned_activities": total,
+        "completed_activities": done,
+        "percent_complete": pct,
+        "session_status": session.status,
+        "note": "Participant progress is independent of session-level lifecycle status.",
+    }
+
+
+def list_session_progress(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+) -> Dict[str, Any]:
+    session = get_session(db, session_id)
+    require_view_session(db, actor, session)
+    students = [
+        p
+        for p in (session.participants or [])
+        if p.role == "STUDENT" and p.status != "REMOVED"
+    ]
+    if _can_manage(db, actor, session) or is_admin(actor):
+        progress = [compute_participant_progress(db, session, p) for p in students]
+    else:
+        mine = [p for p in students if p.user_id == actor.id]
+        progress = [compute_participant_progress(db, session, p) for p in mine]
+    return {
+        "session_id": session.id,
+        "mode": session.mode,
+        "session_status": session.status,
+        "participants": progress,
+    }
+
+
+def set_participant_status(
+    db: Session,
+    actor: models.User,
+    session_id: int,
+    participant_id: int,
+    new_status: str,
+) -> models.LearningSessionParticipant:
+    session = get_session(db, session_id)
+    new_status = (new_status or "").upper()
+    if new_status not in LEARNING_PARTICIPANT_STATUSES:
+        raise _http(422, f"Invalid participant status: {new_status}")
+    row = (
+        db.query(models.LearningSessionParticipant)
+        .filter(
+            models.LearningSessionParticipant.id == participant_id,
+            models.LearningSessionParticipant.session_id == session_id,
+        )
+        .first()
+    )
+    if not row or row.status == "REMOVED":
+        raise _http(404, "Participant not found")
+    # Self can JOIN/ACTIVE/COMPLETED own row; managers can set any
+    if actor.id == row.user_id:
+        if new_status not in ("JOINED", "ACTIVE", "COMPLETED", "LEFT"):
+            raise _http(403, "Students may only update their own participation status")
+    else:
+        require_manage_session(db, actor, session)
+    row.status = new_status
+    if new_status in ("JOINED", "ACTIVE") and not row.joined_at:
+        row.joined_at = _utcnow()
+    if new_status in ("LEFT", "REMOVED"):
+        row.left_at = _utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 # ---------- Validation helpers ----------
 
 def _validate_mode(mode: str) -> str:
@@ -621,6 +795,17 @@ def update_activity(
     if description is not ...:
         row.description = description
     if sequence is not None:
+        clash = (
+            db.query(models.LearningSessionActivity)
+            .filter(
+                models.LearningSessionActivity.session_id == session_id,
+                models.LearningSessionActivity.sequence == sequence,
+                models.LearningSessionActivity.id != activity_id,
+            )
+            .first()
+        )
+        if clash:
+            raise _http(422, f"Activity sequence conflict: sequence {sequence} already used")
         row.sequence = sequence
     if status_value is not None:
         status_value = status_value.upper()
@@ -723,10 +908,20 @@ def add_activity(
         )
         if not part or part.status == "REMOVED":
             raise _http(404, "Participant not found in session")
-    elif session.mode == "COMMON" and scope != "COMMON":
-        raise _http(422, "COMMON sessions only support COMMON activities")
-    elif participant_id is not None:
-        raise _http(422, "COMMON activities cannot target a specific participant")
+        if part.role != "STUDENT":
+            raise _http(422, "Participant-specific activities must target a STUDENT participant")
+        if session.mode == "INDIVIDUAL":
+            student_parts = [
+                p
+                for p in (session.participants or [])
+                if p.role == "STUDENT" and p.status != "REMOVED"
+            ]
+            if not student_parts or part.id != student_parts[0].id:
+                raise _http(422, "INDIVIDUAL session activities must target the session student")
+    else:
+        # COMMON scope
+        if participant_id is not None:
+            raise _http(422, "COMMON activities cannot target a specific participant")
 
     if assessment_id is not None:
         a = db.query(models.Assessment).filter(models.Assessment.id == assessment_id).first()
@@ -742,6 +937,17 @@ def add_activity(
             .count()
             + 1
         )
+    else:
+        clash = (
+            db.query(models.LearningSessionActivity)
+            .filter(
+                models.LearningSessionActivity.session_id == session_id,
+                models.LearningSessionActivity.sequence == sequence,
+            )
+            .first()
+        )
+        if clash:
+            raise _http(422, f"Activity sequence conflict: sequence {sequence} already used")
 
     row = models.LearningSessionActivity(
         session_id=session_id,
@@ -775,24 +981,17 @@ def record_evidence(
     commit: bool = True,
 ) -> models.LearningEvidence:
     session = get_session(db, session_id)
-    # Managers or the evidence subject (participant) may record
     subject_uid = user_id or actor.id
     if not can_view_session(db, actor, session):
         raise _http(403, "Not authorized to record evidence for this session")
-    if actor.id != subject_uid and not (
-        is_admin(actor)
-        or session.created_by == actor.id
-        or session.facilitator_id == actor.id
-        or can_manage_learning_sessions(
-            db, actor, course_id=session.course_id, subject_id=session.subject_id
-        )
-    ):
+    if actor.id != subject_uid and not _can_manage(db, actor, session):
         raise _http(403, "Cannot record evidence for another user")
 
     event_type = (event_type or "").upper()
     if event_type not in LEARNING_EVIDENCE_EVENT_TYPES:
         raise _http(422, f"Invalid evidence event type: {event_type}")
 
+    act = None
     if activity_id is not None:
         act = (
             db.query(models.LearningSessionActivity)
@@ -804,6 +1003,15 @@ def record_evidence(
         )
         if not act:
             raise _http(404, "Activity not found in session")
+        # Subject must be allowed to see / act on this activity
+        subject_user = db.query(models.User).filter(models.User.id == subject_uid).first()
+        if not subject_user or not activity_visible_to_user(db, subject_user, session, act):
+            raise _http(403, "Evidence subject cannot access this activity")
+        if (act.scope or "").upper() == "PARTICIPANT_SPECIFIC":
+            target = get_participant_row(db, session_id, participant_id=act.participant_id)
+            if not target or target.user_id != subject_uid:
+                raise _http(403, "Cannot record evidence on another participant's activity")
+
     if objective_id is not None:
         obj = (
             db.query(models.LearningSessionObjective)
@@ -815,6 +1023,8 @@ def record_evidence(
         )
         if not obj:
             raise _http(404, "Objective not found in session")
+
+    part = None
     if participant_id is not None:
         part = (
             db.query(models.LearningSessionParticipant)
@@ -826,7 +1036,14 @@ def record_evidence(
         )
         if not part:
             raise _http(404, "Participant not found in session")
+        if part.user_id != subject_uid:
+            raise _http(422, "participant_id does not match evidence user")
+    else:
+        part = get_participant_row(db, session_id, user_id=subject_uid)
+        if part:
+            participant_id = part.id
 
+    # Append-only evidence rows — never overwrite another participant's evidence
     row = models.LearningEvidence(
         session_id=session_id,
         user_id=subject_uid,
@@ -837,6 +1054,20 @@ def record_evidence(
         payload=payload,
     )
     db.add(row)
+
+    # Update participant-level status without changing session lifecycle
+    if part and part.role == "STUDENT" and part.status not in ("REMOVED", "LEFT"):
+        if event_type == "ACTIVITY_COMPLETED" and part.status in ("INVITED", "JOINED"):
+            part.status = "ACTIVE"
+            if not part.joined_at:
+                part.joined_at = _utcnow()
+        if event_type == "ACTIVITY_COMPLETED" and commit:
+            db.flush()
+            session = get_session(db, session_id)
+            progress = compute_participant_progress(db, session, part)
+            if progress["progress_status"] == "COMPLETED" and part.status != "COMPLETED":
+                part.status = "COMPLETED"
+
     if commit:
         db.commit()
         db.refresh(row)
@@ -845,7 +1076,15 @@ def record_evidence(
     return row
 
 
-def session_to_dict(session: models.LearningSession) -> Dict[str, Any]:
+def session_to_dict(
+    session: models.LearningSession,
+    *,
+    viewer: Optional[models.User] = None,
+    db: Optional[Session] = None,
+) -> Dict[str, Any]:
+    activities = sorted(session.activities or [], key=lambda a: (a.sequence, a.id))
+    if viewer is not None and db is not None:
+        activities = [a for a in activities if activity_visible_to_user(db, viewer, session, a)]
     return {
         "id": session.id,
         "title": session.title,
@@ -874,6 +1113,7 @@ def session_to_dict(session: models.LearningSession) -> Dict[str, Any]:
                 "left_at": p.left_at,
             }
             for p in (session.participants or [])
+            if p.status != "REMOVED"
         ],
         "objectives": [
             {
@@ -901,6 +1141,6 @@ def session_to_dict(session: models.LearningSession) -> Dict[str, Any]:
                 "assessment_id": a.assessment_id,
                 "payload": a.payload,
             }
-            for a in sorted(session.activities or [], key=lambda x: x.sequence)
+            for a in activities
         ],
     }
