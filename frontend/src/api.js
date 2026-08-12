@@ -130,4 +130,41 @@ export const getQuestionImportance = (id) =>
   API.get(`/academic-intelligence/questions/${id}/importance`);
 export const selectQuestions = (data) => API.post("/question-selection", data);
 
+// Student attempts (P0-011)
+export const enrollInCourse = (courseId) => API.post(`/courses/${courseId}/enroll`);
+export const listStudentAssessments = (params) => API.get("/student/assessments", { params });
+export const getAssessmentInstructions = (id) => API.get(`/student/assessments/${id}/instructions`);
+export const startAssessmentAttempt = (id) => API.post(`/student/assessments/${id}/start`);
+export const getAttempt = (id) => API.get(`/student/attempts/${id}`);
+export const saveAttemptResponse = (id, data) => API.post(`/student/attempts/${id}/responses`, data);
+export const submitAttempt = (id) => API.post(`/student/attempts/${id}/submit`);
+export const getAttemptResult = (id) => API.get(`/student/attempts/${id}/result`);
+export const releaseAnswerKey = (assessmentId) =>
+  API.post(`/assessments/${assessmentId}/release-answer-key`);
+export const getAnswerKey = (assessmentId) => API.get(`/assessments/${assessmentId}/answer-key`);
+export const downloadAnswerKeyPdf = (assessmentId) =>
+  API.get(`/assessments/${assessmentId}/answer-key.pdf`, { responseType: "blob" });
+
+// P0-012 Performance Analyzer + Inbox
+export const getMyPerformance = (courseId) => API.get("/analyzer/me", { params: { course_id: courseId } });
+export const getPerformanceAnalysis = (studentId, courseId, params) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}`, { params });
+export const getLearningProfile = (studentId, courseId) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}/profile`);
+export const getLearningGaps = (studentId, courseId) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}/gaps`);
+export const getReadiness = (studentId, courseId) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}/readiness`);
+export const getAnalyzerReport = (studentId, courseId) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}/report`);
+export const downloadAnalyzerReportPdf = (studentId, courseId) =>
+  API.get(`/analyzer/students/${studentId}/courses/${courseId}/report.pdf`, { responseType: "blob" });
+export const getCourseAttention = (courseId) => API.get(`/analyzer/courses/${courseId}/attention`);
+export const getInbox = (params) => API.get("/inbox/notifications", { params });
+export const getInboxUnreadCount = () => API.get("/inbox/unread-count");
+export const markInboxRead = (deliveryId) => API.post(`/inbox/notifications/${deliveryId}/read`);
+export const markInboxAllRead = () => API.post("/inbox/notifications/read-all");
+export const getNotificationPreferences = () => API.get("/inbox/preferences");
+export const updateNotificationPreferences = (data) => API.put("/inbox/preferences", data);
+
 export default API;

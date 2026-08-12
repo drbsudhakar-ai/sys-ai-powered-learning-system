@@ -58,6 +58,7 @@ def build_performance_sheet(
         .filter(
             models.AssessmentAttempt.student_id == student_id,
             models.AssessmentAttempt.course_id == course_id,
+            models.AssessmentAttempt.status == "EVALUATED",
         )
         .order_by(models.AssessmentAttempt.submitted_at.asc())
         .all()
@@ -257,6 +258,139 @@ def render_report_card_pdf(report: Dict[str, Any]) -> bytes:
             )
             y -= 13
 
+    c.showPage()
+    c.save()
+    return buffer.getvalue()
+
+
+def build_analyzer_performance_report(analysis: Dict[str, Any]) -> Dict[str, Any]:
+    """Structured P0-012 performance report from analyzer output."""
+    return {
+        "brand": "SYS — Strengthen Your Skills",
+        "title": "Student Performance Report",
+        "student": analysis.get("student"),
+        "course": analysis.get("course"),
+        "summary": analysis.get("overall"),
+        "strengths": analysis.get("strengths"),
+        "learning_gaps": analysis.get("learning_gaps"),
+        "high_priority_gaps": analysis.get("high_priority_gaps"),
+        "subject_analysis": analysis.get("subject_performance"),
+        "topic_analysis": analysis.get("topic_performance"),
+        "difficulty_analysis": analysis.get("difficulty_performance"),
+        "assessment_type_analysis": analysis.get("assessment_type_performance"),
+        "trends": analysis.get("trends"),
+        "readiness": analysis.get("readiness"),
+        "recommended_focus": analysis.get("recommended_focus"),
+        "disclaimer": (
+            "Observed evidence is derived from evaluated assessment attempts. "
+            "Trends, gap classifications, and readiness are analytical estimates (system inference), "
+            "not confirmed diagnoses or guarantees."
+        ),
+        "generated_at": analysis.get("generated_at"),
+    }
+
+
+def render_analyzer_report_pdf(report: Dict[str, Any]) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    c.setTitle("SYS Performance Report")
+    c.setAuthor("SYS - Strengthen Your Skills")
+    width, height = A4
+    y = height - 50
+
+    def nl(gap=14):
+        nonlocal y
+        y -= gap
+        if y < 55:
+            c.showPage()
+            y = height - 50
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, "SYS — Strengthen Your Skills")
+    nl(22)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(40, y, "Student Performance Report")
+    nl(18)
+    student = report.get("student") or {}
+    course = report.get("course") or {}
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, f"Student: {student.get('name')}  |  Course: {course.get('title')}")
+    nl()
+    summary = report.get("summary") or {}
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Overall Summary")
+    nl(13)
+    c.setFont("Helvetica", 10)
+    c.drawString(
+        40,
+        y,
+        f"Average: {summary.get('average_percentage')}%  |  Accuracy: {summary.get('accuracy')}%  |  "
+        f"Trend: {summary.get('trend')}  |  Assessments: {summary.get('total_assessments')}",
+    )
+    nl()
+    readiness = report.get("readiness") or {}
+    c.drawString(
+        40,
+        y,
+        f"Readiness estimate: {readiness.get('overall_estimate')}%  ({readiness.get('label')})",
+    )
+    nl(16)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Strengths")
+    nl(13)
+    c.setFont("Helvetica", 10)
+    for s in (report.get("strengths") or [])[:8]:
+        c.drawString(45, y, f"- {s.get('name')}: {s.get('classification')} ({s.get('percentage')}%)")
+        nl(12)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Learning Gaps (with evidence)")
+    nl(13)
+    c.setFont("Helvetica", 9)
+    for g in (report.get("learning_gaps") or [])[:12]:
+        ev = g.get("observed_evidence") or {}
+        c.drawString(
+            45,
+            y,
+            f"- {g.get('name')} [{g.get('classification')}] acc={ev.get('accuracy')} "
+            f"q={ev.get('questions')} conf={g.get('confidence')}",
+        )
+        nl(11)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Assessment-Type Analysis")
+    nl(13)
+    c.setFont("Helvetica", 10)
+    for row in report.get("assessment_type_analysis") or []:
+        c.drawString(
+            45,
+            y,
+            f"- {row.get('assessment_type')}: avg {row.get('average_percentage')}% "
+            f"(n={row.get('count')}, trend={row.get('trend')})",
+        )
+        nl(12)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Difficulty Analysis")
+    nl(13)
+    c.setFont("Helvetica", 10)
+    for row in report.get("difficulty_analysis") or []:
+        c.drawString(45, y, f"- {row.get('name')}: {row.get('percentage')}%")
+        nl(12)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Priority Recommendations")
+    nl(13)
+    c.setFont("Helvetica", 10)
+    for i, r in enumerate(report.get("recommended_focus") or [], 1):
+        c.drawString(45, y, f"{i}. {r.get('name')} ({r.get('classification')})")
+        nl(12)
+    nl(10)
+    c.setFont("Helvetica-Oblique", 8)
+    disc = report.get("disclaimer") or ""
+    while disc:
+        c.drawString(40, y, disc[:95])
+        disc = disc[95:]
+        nl(10)
     c.showPage()
     c.save()
     return buffer.getvalue()

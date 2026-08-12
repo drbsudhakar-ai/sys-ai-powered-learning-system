@@ -236,6 +236,11 @@ class Assessment(Base):
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # P0-011 availability / attempt policy
+    available_from = Column(DateTime(timezone=True), nullable=True)
+    available_until = Column(DateTime(timezone=True), nullable=True)
+    max_attempts = Column(Integer, nullable=False, server_default="1", default=1)
+    answer_key_released = Column(Boolean, nullable=False, server_default="false", default=False)
 
     course = relationship("Course", back_populates="assessments")
     created_by_user = relationship("User", back_populates="assessments")
@@ -301,7 +306,7 @@ class AssessmentVersion(Base):
 
 
 class AssessmentQuestion(Base):
-    """Frozen question membership for a published assessment version."""
+    """Frozen question membership + immutable content snapshot for a published version."""
     __tablename__ = "assessment_questions"
     __table_args__ = (
         UniqueConstraint("version_id", "question_id", name="uq_version_question"),
@@ -316,6 +321,18 @@ class AssessmentQuestion(Base):
     subtopic_id = Column(Integer, ForeignKey("subtopics.id"), nullable=True)
     difficulty = Column(String(20), nullable=True)
     marks_available = Column(Float, nullable=False, default=1.0)
+    # Immutable snapshot (P0-011) — answer keys / evaluation must use these
+    stem_snapshot = Column(Text, nullable=True)
+    options_snapshot = Column(JSON, nullable=True)
+    correct_answer_snapshot = Column(Text, nullable=True)
+    explanation_snapshot = Column(Text, nullable=True)
+    question_type_snapshot = Column(String(50), nullable=True)
+    shortcut_snapshot = Column(Text, nullable=True)
+    alternative_solution_snapshot = Column(Text, nullable=True)
+    common_traps_snapshot = Column(Text, nullable=True)
+    negative_marks_snapshot = Column(Float, nullable=True)
+    subject_name_snapshot = Column(String(200), nullable=True)
+    topic_name_snapshot = Column(String(200), nullable=True)
 
     version = relationship("AssessmentVersion", back_populates="questions")
     question = relationship("Question")
@@ -334,20 +351,55 @@ class AssessmentAttempt(Base):
     version_id = Column(Integer, ForeignKey("assessment_versions.id"), nullable=False)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     attempt_number = Column(Integer, nullable=False, default=1)
-    status = Column(String(20), nullable=False, server_default="SUBMITTED")
+    status = Column(String(20), nullable=False, server_default="IN_PROGRESS", default="IN_PROGRESS")
     started_at = Column(DateTime(timezone=True), nullable=True)
-    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    auto_submitted = Column(Boolean, nullable=False, server_default="false", default=False)
+    time_spent_seconds = Column(Float, nullable=True)
     total_marks_obtained = Column(Float, nullable=True)
     total_marks_available = Column(Float, nullable=True)
+    percentage = Column(Float, nullable=True)
+    correct_count = Column(Integer, nullable=True)
+    incorrect_count = Column(Integer, nullable=True)
+    unanswered_count = Column(Integer, nullable=True)
 
     assessment = relationship("Assessment", back_populates="attempts")
     version = relationship("AssessmentVersion", back_populates="attempts")
     student = relationship("User")
+    answer_responses = relationship(
+        "AttemptResponse",
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+    )
     responses = relationship(
         "PerformanceRecord",
         back_populates="attempt",
         cascade="all, delete-orphan",
     )
+
+
+class AttemptResponse(Base):
+    """In-progress / submitted student answers (pre-evaluation)."""
+    __tablename__ = "attempt_responses"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "assessment_question_id", name="uq_attempt_aq"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=False)
+    assessment_question_id = Column(Integer, ForeignKey("assessment_questions.id"), nullable=False)
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
+    question_sequence = Column(Integer, nullable=False, default=1)
+    selected_answer = Column(Text, nullable=True)
+    answered = Column(Boolean, nullable=False, server_default="false", default=False)
+    marked_for_review = Column(Boolean, nullable=False, server_default="false", default=False)
+    time_spent_seconds = Column(Float, nullable=True, default=0)
+    submitted_answer_snapshot = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    attempt = relationship("AssessmentAttempt", back_populates="answer_responses")
+    assessment_question = relationship("AssessmentQuestion")
 
 
 class PerformanceRecord(Base):
@@ -420,6 +472,110 @@ class Notification(Base):
     retry_count = Column(Integer, nullable=False, server_default="0", default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     sent_at = Column(DateTime(timezone=True), nullable=True)
+    # P0-012 unified engine fields
+    source_module = Column(String(50), nullable=True, server_default="SYSTEM")
+    severity = Column(String(20), nullable=True, server_default="INFO")
+    priority = Column(Integer, nullable=True, default=5)
+    title = Column(String(255), nullable=True)
+    payload = Column(JSON, nullable=True)
+    link_path = Column(String(500), nullable=True)
+    channels = Column(JSON, nullable=True)  # ["EMAIL","IN_APP"]
+
+    deliveries = relationship(
+        "NotificationDelivery",
+        back_populates="notification",
+        cascade="all, delete-orphan",
+    )
+
+
+class NotificationDelivery(Base):
+    """Per-recipient, per-channel delivery audit (P0-012)."""
+    __tablename__ = "notification_deliveries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    notification_id = Column(Integer, ForeignKey("notifications.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    email = Column(String(255), nullable=True)
+    channel = Column(String(20), nullable=False)  # EMAIL | IN_APP | SMS
+    status = Column(String(20), nullable=False, server_default="PENDING")
+    failure_reason = Column(Text, nullable=True)
+    retry_count = Column(Integer, nullable=False, server_default="0", default=0)
+    is_read = Column(Boolean, nullable=False, server_default="false", default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+
+    notification = relationship("Notification", back_populates="deliveries")
+    user = relationship("User")
+
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        UniqueConstraint("user_id", "category", name="uq_user_notif_pref_category"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    category = Column(String(50), nullable=False)
+    email_enabled = Column(Boolean, nullable=False, server_default="true", default=True)
+    in_app_enabled = Column(Boolean, nullable=False, server_default="true", default=True)
+    sms_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+
+
+class PerformanceAnalysis(Base):
+    """Cached analyzer output for a student+course (from real PerformanceRecords)."""
+    __tablename__ = "performance_analyses"
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", name="uq_perf_analysis_student_course"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    analysis_json = Column(JSON, nullable=False)
+    overall_percentage = Column(Float, nullable=True)
+    trend = Column(String(30), nullable=True)
+    readiness_estimate = Column(Float, nullable=True)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    trigger_attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=True)
+
+
+class LearningGap(Base):
+    __tablename__ = "learning_gaps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    analysis_id = Column(Integer, ForeignKey("performance_analyses.id"), nullable=True)
+    scope_type = Column(String(30), nullable=False)  # SUBJECT|TOPIC|CONCEPT|DIFFICULTY
+    scope_id = Column(Integer, nullable=True)
+    scope_name = Column(String(200), nullable=True)
+    classification = Column(String(30), nullable=False)
+    confidence = Column(Float, nullable=True)
+    priority_score = Column(Float, nullable=True)
+    evidence = Column(JSON, nullable=True)  # observed
+    inference = Column(JSON, nullable=True)  # system inference (not facts)
+    is_high_priority = Column(Boolean, nullable=False, server_default="false", default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudentLearningProfile(Base):
+    """Machine-readable profile for AI Lecturer / Remedial consumers."""
+    __tablename__ = "student_learning_profiles"
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", name="uq_learning_profile_student_course"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    profile_json = Column(JSON, nullable=False)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    analysis_id = Column(Integer, ForeignKey("performance_analyses.id"), nullable=True)
 
 
 # =========================

@@ -175,6 +175,9 @@ class AssessmentCreate(AssessmentBase):
     marks_unanswered: Optional[float] = 0.0
     subject_id: Optional[int] = None
     topic_id: Optional[int] = None
+    available_from: Optional[datetime] = None
+    available_until: Optional[datetime] = None
+    max_attempts: Optional[int] = Field(1, ge=1)
 
 class AssessmentUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
@@ -190,6 +193,10 @@ class AssessmentUpdate(BaseModel):
     subject_id: Optional[int] = None
     topic_id: Optional[int] = None
     status: Optional[str] = None
+    available_from: Optional[datetime] = None
+    available_until: Optional[datetime] = None
+    max_attempts: Optional[int] = Field(None, ge=1)
+    answer_key_released: Optional[bool] = None
 
 class BlueprintItemIn(BaseModel):
     subject_id: int
@@ -249,6 +256,10 @@ class AssessmentOut(AssessmentBase):
     marks_unanswered: Optional[float] = None
     subject_id: Optional[int] = None
     topic_id: Optional[int] = None
+    available_from: Optional[datetime] = None
+    available_until: Optional[datetime] = None
+    max_attempts: Optional[int] = 1
+    answer_key_released: Optional[bool] = False
     blueprint_items: List[BlueprintItemOut] = []
     versions: List[AssessmentVersionOut] = []
 
@@ -488,6 +499,14 @@ class SelectionRequest(BaseModel):
     reuse_mix: Optional[Dict[str, float]] = None
     evidence_based: Optional[bool] = True
 
+
+class AttemptResponseIn(BaseModel):
+    assessment_question_id: int
+    selected_answer: Optional[str] = None
+    marked_for_review: Optional[bool] = None
+    clear: Optional[bool] = False
+    time_spent_delta: Optional[float] = 0
+
 class NotificationRecipientCreate(BaseModel):
     name: str
     designation: Optional[str] = None
@@ -529,9 +548,20 @@ class NotificationOut(BaseModel):
     retry_count: int = 0
     created_at: datetime
     sent_at: Optional[datetime] = None
+    source_module: Optional[str] = None
+    severity: Optional[str] = None
+    title: Optional[str] = None
+    link_path: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class NotificationPreferenceIn(BaseModel):
+    category: str
+    email_enabled: Optional[bool] = None
+    in_app_enabled: Optional[bool] = None
+    sms_enabled: Optional[bool] = None
 
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]

@@ -39,6 +39,12 @@ from app.models import (
     TopicWeightage,
     PriorityWeightConfig,
     TopicIntelligenceSnapshot,
+    AttemptResponse,
+    NotificationDelivery,
+    NotificationPreference,
+    PerformanceAnalysis,
+    LearningGap,
+    StudentLearningProfile,
     Resource,
 )
 

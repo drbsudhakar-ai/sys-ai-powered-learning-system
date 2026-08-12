@@ -125,6 +125,9 @@ def create_assessment(
         marks_unanswered=payload.marks_unanswered if payload.marks_unanswered is not None else 0.0,
         subject_id=payload.subject_id,
         topic_id=payload.topic_id,
+        available_from=payload.available_from,
+        available_until=payload.available_until,
+        max_attempts=payload.max_attempts if payload.max_attempts is not None else 1,
     )
     db.add(a)
     db.commit()
@@ -336,20 +339,24 @@ def publish_assessment(
     db.add(version)
     db.flush()
 
+    from app.services.attempt_engine import snapshot_question_onto_aq
+
     marks_each = float(a.marks_correct or 1.0)
+    neg = float(a.marks_incorrect or 0.0)
     for idx, q in enumerate(selected, start=1):
-        db.add(
-            models.AssessmentQuestion(
-                version_id=version.id,
-                question_id=q.id,
-                sequence=idx,
-                subject_id=q.subject_id,
-                topic_id=q.topic_id,
-                subtopic_id=q.subtopic_id,
-                difficulty=q.difficulty,
-                marks_available=marks_each,
-            )
+        aq = models.AssessmentQuestion(
+            version_id=version.id,
+            question_id=q.id,
+            sequence=idx,
+            subject_id=q.subject_id,
+            topic_id=q.topic_id,
+            subtopic_id=q.subtopic_id,
+            difficulty=q.difficulty,
+            marks_available=marks_each,
         )
+        db.add(aq)
+        db.flush()
+        snapshot_question_onto_aq(db, aq, q, marks_each, neg)
 
     a.status = "PUBLISHED"
     db.commit()

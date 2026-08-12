@@ -353,9 +353,10 @@ class AssessmentEngineTests(unittest.TestCase):
                 version_id=version.id,
                 course_id=self.course_id,
                 attempt_number=1,
-                status="SUBMITTED",
+                status="EVALUATED",
                 total_marks_obtained=8,
                 total_marks_available=12,
+                percentage=66.67,
             )
             db.add(attempt)
             db.flush()
@@ -464,7 +465,7 @@ class AssessmentEngineTests(unittest.TestCase):
             nid = notes.json()[0]["id"]
             retried = client.post(f"/notifications/{nid}/retry", headers=_auth(self.admin_token))
             self.assertEqual(retried.status_code, 200)
-            self.assertIn(retried.json()["status"], ("FAILED", "SENT", "RETRYING", "PENDING"))
+            self.assertIn(retried.json()["status"], ("FAILED", "SENT", "RETRYING", "PENDING", "PARTIAL", "PROCESSING"))
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import NotificationBell from "./NotificationBell";
 
 export default function Header() {
   return (
@@ -145,6 +146,23 @@ export default function Header() {
           </Link>
 
           <Link
+            href="/student/assessments"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            My Tests
+          </Link>
+
+          <Link
             href="/question-bank"
             className="
               rounded-xl
@@ -177,6 +195,42 @@ export default function Header() {
           >
             Assessments
           </Link>
+
+          <Link
+            href="/performance"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            Performance
+          </Link>
+
+          <Link
+            href="/my-performance"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            My Performance
+          </Link>
+
+          <NotificationBell />
 
           <Link
             href="/admin-dashboard"
