@@ -142,14 +142,34 @@ class CourseBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     syllabus_url: Optional[str] = Field(None, max_length=255)
     resources_url: Optional[str] = Field(None, max_length=255)
+    programme_category: Optional[str] = None
+    examination_name: Optional[str] = Field(None, max_length=200)
+    examination_authority: Optional[str] = Field(None, max_length=200)
+    target_purpose: Optional[str] = Field(None, max_length=300)
+    programme_code: Optional[str] = Field(None, max_length=80)
+    is_active: Optional[bool] = None
 
 class CourseCreate(CourseBase):
     pass
+
+class CourseUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=255)
+    resources_url: Optional[str] = Field(None, max_length=255)
+    programme_category: Optional[str] = None
+    examination_name: Optional[str] = Field(None, max_length=200)
+    examination_authority: Optional[str] = Field(None, max_length=200)
+    target_purpose: Optional[str] = Field(None, max_length=300)
+    programme_code: Optional[str] = Field(None, max_length=80)
+    is_active: Optional[bool] = None
 
 class CourseOut(CourseBase):
     id: int
     created_by: Optional[int] = None
     created_at: datetime
+    programme_category: str
+    is_active: bool = True
     course_coordinators: List[CourseCoordinatorOut] = []
 
     class Config:

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { getCourses, getMe, getApiErrorMessage } from "../../src/api";
+import { getCourses, getMe, getMyProgrammes, getApiErrorMessage, enrollInCourse } from "../../src/api";
 import { clearSession, getToken, isStaffRole, redirectToLogin } from "../../src/auth";
 
 export default function CoursesPage() {
@@ -10,6 +10,8 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [enrolledIds, setEnrolledIds] = useState([]);
+  const [enrolling, setEnrolling] = useState(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -25,6 +27,10 @@ export default function CoursesPage() {
         setUser(me.data);
         const res = await getCourses();
         setCourses(Array.isArray(res.data) ? res.data : []);
+        if ((me.data.role || "").toLowerCase() === "student") {
+          const mine = await getMyProgrammes();
+          setEnrolledIds((mine.data.enrollments || []).map((c) => c.id));
+        }
       } catch (err) {
         if (err.response?.status === 401) {
           clearSession();
@@ -46,10 +52,10 @@ export default function CoursesPage() {
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="sys-tagline !text-left !text-base">Course Management</p>
+          <p className="sys-tagline !text-left !text-base">Preparation courses & learning programmes</p>
           <h1 className="text-2xl font-bold text-[var(--sys-blue)] sm:text-3xl">Courses</h1>
           <p className="mt-1 text-sm text-[var(--sys-gray)]">
-            Browse SYS training courses
+            Browse SYS preparation courses and independent learning programmes
             {user?.role ? ` · signed in as ${user.role}` : ""}.
           </p>
         </div>
@@ -93,6 +99,11 @@ export default function CoursesPage() {
                   <p className="mt-1 text-sm text-[var(--sys-gray)]">
                     {course.description || "No description provided."}
                   </p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {(course.programme_category || "").replaceAll("_", " ")}
+                    {course.examination_name ? ` · ${course.examination_name}` : ""}
+                    {course.programme_code === "ENGLISH_COMMUNICATION" ? " · English Communication" : ""}
+                  </p>
                   {course.created_at && (
                     <p className="mt-2 text-xs text-gray-500">
                       Created {new Date(course.created_at).toLocaleString()}
@@ -114,6 +125,27 @@ export default function CoursesPage() {
                       onClick={() => router.push(`/courses/${course.id}/edit`)}
                     >
                       Edit
+                    </button>
+                  )}
+                  {!staff && user?.role?.toLowerCase() === "student" && (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={enrolling === course.id || enrolledIds.includes(course.id)}
+                      onClick={async () => {
+                        setEnrolling(course.id);
+                        setError("");
+                        try {
+                          await enrollInCourse(course.id);
+                          setEnrolledIds((prev) => [...prev, course.id]);
+                        } catch (err) {
+                          setError(getApiErrorMessage(err, "Unable to enroll."));
+                        } finally {
+                          setEnrolling(null);
+                        }
+                      }}
+                    >
+                      {enrolledIds.includes(course.id) ? "Enrolled" : "Enroll"}
                     </button>
                   )}
                 </div>

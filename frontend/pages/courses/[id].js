@@ -3,9 +3,11 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   deleteCourse,
+  enrollInCourse,
   getApiErrorMessage,
   getCourse,
   getMe,
+  getMyProgrammes,
 } from "../../src/api";
 import { clearSession, getToken, isStaffRole, redirectToLogin } from "../../src/auth";
 
@@ -16,7 +18,8 @@ export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [deleting, setDeleting] = useState(false);
+  const [enrolled, setEnrolled] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -34,6 +37,10 @@ export default function CourseDetailsPage() {
         setUser(me.data);
         const res = await getCourse(id);
         setCourse(res.data);
+        if ((me.data.role || "").toLowerCase() === "student") {
+          const mine = await getMyProgrammes();
+          setEnrolled((mine.data.enrollments || []).some((c) => String(c.id) === String(id)));
+        }
       } catch (err) {
         if (err.response?.status === 401) {
           clearSession();
@@ -97,6 +104,31 @@ export default function CourseDetailsPage() {
           </p>
 
           <dl className="mt-6 space-y-2 text-sm text-[var(--sys-gray)]">
+            <div>
+              <dt className="font-semibold text-[var(--sys-blue)]">Programme category</dt>
+              <dd>{(course.programme_category || "").replaceAll("_", " ") || "—"}</dd>
+            </div>
+            {course.examination_name ? (
+              <div>
+                <dt className="font-semibold text-[var(--sys-blue)]">Examination</dt>
+                <dd>
+                  {course.examination_name}
+                  {course.examination_authority ? ` · ${course.examination_authority}` : ""}
+                </dd>
+              </div>
+            ) : null}
+            {course.target_purpose ? (
+              <div>
+                <dt className="font-semibold text-[var(--sys-blue)]">Purpose</dt>
+                <dd>{course.target_purpose}</dd>
+              </div>
+            ) : null}
+            {course.programme_code === "ENGLISH_COMMUNICATION" ? (
+              <div>
+                <dt className="font-semibold text-[var(--sys-blue)]">Independent programme</dt>
+                <dd>English Communication (agent not included in this release)</dd>
+              </div>
+            ) : null}
             {course.syllabus_url && (
               <div>
                 <dt className="font-semibold text-[var(--sys-blue)]">Syllabus</dt>
@@ -132,6 +164,30 @@ export default function CourseDetailsPage() {
               </div>
             )}
           </dl>
+
+          {!staff && (user?.role || "").toLowerCase() === "student" && (
+            <div className="mt-6">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={enrolled || enrolling}
+                onClick={async () => {
+                  setEnrolling(true);
+                  setError("");
+                  try {
+                    await enrollInCourse(course.id);
+                    setEnrolled(true);
+                  } catch (err) {
+                    setError(getApiErrorMessage(err, "Unable to enroll."));
+                  } finally {
+                    setEnrolling(false);
+                  }
+                }}
+              >
+                {enrolled ? "Enrolled" : "Enroll in this programme"}
+              </button>
+            </div>
+          )}
 
           {staff && (
             <div className="mt-6 flex flex-wrap gap-3">

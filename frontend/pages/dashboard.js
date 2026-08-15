@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { getMe, getCourses, getMyNextLearningAction } from "../src/api";
+import { getMe, getCourses, getMyProgrammes, getMyNextLearningAction } from "../src/api";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
@@ -14,15 +14,20 @@ export default function DashboardPage() {
         const userRes = await getMe();
         setUser(userRes.data);
 
-        const coursesRes = await getCourses();
-        setCourses(coursesRes.data);
-        if ((userRes.data.role || "").toLowerCase() === "student" && coursesRes.data?.[0]) {
-          try {
-            const nxt = await getMyNextLearningAction(coursesRes.data[0].id);
-            setNextAction(nxt.data);
-          } catch {
-            setNextAction(null);
+        if ((userRes.data.role || "").toLowerCase() === "student") {
+          const mine = await getMyProgrammes();
+          setCourses(mine.data.enrollments || []);
+          if (mine.data.enrollments?.[0]) {
+            try {
+              const nxt = await getMyNextLearningAction(mine.data.enrollments[0].id);
+              setNextAction(nxt.data);
+            } catch {
+              setNextAction(null);
+            }
           }
+        } else {
+          const coursesRes = await getCourses();
+          setCourses(coursesRes.data || []);
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
@@ -91,7 +96,7 @@ export default function DashboardPage() {
           {/* Course Overview */}
           <section className="mb-8">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-sys-gray">Your Courses</h3>
+              <h3 className="text-lg font-bold text-sys-gray">Your courses / preparation</h3>
               <a href="/courses" className="text-sm font-semibold text-sys-blue underline">
                 Manage courses
               </a>
@@ -116,7 +121,11 @@ export default function DashboardPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-gray-500">No courses enrolled yet.</p>
+              <p className="text-sm text-gray-500">
+                No programmes enrolled yet. You can still use{" "}
+                <a href="/programs" className="underline">Motivation &amp; Support</a> and{" "}
+                <a href="/notifications" className="underline">notifications</a> without enrolling.
+              </p>
             )}
           </section>
 

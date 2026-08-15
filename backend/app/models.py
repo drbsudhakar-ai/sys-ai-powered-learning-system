@@ -54,6 +54,7 @@ class User(Base):
 # =========================
 
 class Course(Base):
+    """SYS Course = a goal-oriented preparation / learning programme."""
     __tablename__ = "courses"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -61,6 +62,15 @@ class Course(Base):
     description = Column(String(500), nullable=True)
     syllabus_url = Column(String(255), nullable=True)
     resources_url = Column(String(255), nullable=True)
+    # P0-018 programme classification (existing rows default via migration)
+    programme_category = Column(
+        String(50), nullable=False, server_default="INDEPENDENT_LEARNING", default="INDEPENDENT_LEARNING"
+    )
+    examination_name = Column(String(200), nullable=True)
+    examination_authority = Column(String(200), nullable=True)
+    target_purpose = Column(String(300), nullable=True)
+    programme_code = Column(String(80), nullable=True, index=True)
+    is_active = Column(Boolean, nullable=False, server_default="true", default=True)
 
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

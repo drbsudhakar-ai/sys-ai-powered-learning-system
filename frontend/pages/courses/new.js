@@ -10,6 +10,12 @@ const emptyForm = {
   description: "",
   syllabus_url: "",
   resources_url: "",
+  programme_category: "INDEPENDENT_LEARNING",
+  programme_code: "",
+  examination_name: "",
+  examination_authority: "",
+  target_purpose: "",
+  is_active: true,
 };
 
 export default function NewCoursePage() {
@@ -47,8 +53,14 @@ export default function NewCoursePage() {
   }, []);
 
   const onChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => {
+      const next = { ...prev, [name]: type === "checkbox" ? checked : value };
+      if (name === "programme_code" && value === "ENGLISH_COMMUNICATION") {
+        next.programme_category = "INDEPENDENT_LEARNING";
+      }
+      return next;
+    });
   };
 
   const onSubmit = async (e) => {
@@ -66,6 +78,12 @@ export default function NewCoursePage() {
         description: formData.description.trim() || null,
         syllabus_url: formData.syllabus_url.trim() || null,
         resources_url: formData.resources_url.trim() || null,
+        programme_category: formData.programme_category || "INDEPENDENT_LEARNING",
+        programme_code: formData.programme_code || null,
+        examination_name: (formData.examination_name || "").trim() || null,
+        examination_authority: (formData.examination_authority || "").trim() || null,
+        target_purpose: (formData.target_purpose || "").trim() || null,
+        is_active: formData.is_active !== false,
       };
       const res = await createCourse(payload);
       setSuccess("Course created successfully.");
@@ -87,8 +105,10 @@ export default function NewCoursePage() {
       <Link href="/courses" className="text-sm font-semibold text-[var(--sys-blue)] no-underline hover:underline">
         ← Back to courses
       </Link>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--sys-blue)]">Create Course</h1>
-      <p className="mb-6 mt-1 text-sm text-[var(--sys-gray)]">Add a new SYS training course.</p>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--sys-blue)]">Create preparation course</h1>
+      <p className="mb-6 mt-1 text-sm text-[var(--sys-gray)]">
+        Add a SYS learning programme (entrance, employment, independent learning, or skill development).
+      </p>
 
       {!ready && <p className="sys-card" role="status">Checking permissions…</p>}
       {ready && error && !formData.title && error.includes("permission") ? (

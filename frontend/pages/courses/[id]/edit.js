@@ -18,6 +18,12 @@ export default function EditCoursePage() {
     description: "",
     syllabus_url: "",
     resources_url: "",
+    programme_category: "INDEPENDENT_LEARNING",
+    programme_code: "",
+    examination_name: "",
+    examination_authority: "",
+    target_purpose: "",
+    is_active: true,
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +58,12 @@ export default function EditCoursePage() {
           description: c.description || "",
           syllabus_url: c.syllabus_url || "",
           resources_url: c.resources_url || "",
+          programme_category: c.programme_category || "INDEPENDENT_LEARNING",
+          programme_code: c.programme_code || "",
+          examination_name: c.examination_name || "",
+          examination_authority: c.examination_authority || "",
+          target_purpose: c.target_purpose || "",
+          is_active: c.is_active !== false,
         });
       } catch (err) {
         if (err.response?.status === 401) {
@@ -67,8 +79,14 @@ export default function EditCoursePage() {
   }, [router.isReady, id]);
 
   const onChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => {
+      const next = { ...prev, [name]: type === "checkbox" ? checked : value };
+      if (name === "programme_code" && value === "ENGLISH_COMMUNICATION") {
+        next.programme_category = "INDEPENDENT_LEARNING";
+      }
+      return next;
+    });
   };
 
   const onSubmit = async (e) => {
@@ -86,6 +104,12 @@ export default function EditCoursePage() {
         description: formData.description.trim() || null,
         syllabus_url: formData.syllabus_url.trim() || null,
         resources_url: formData.resources_url.trim() || null,
+        programme_category: formData.programme_category || "INDEPENDENT_LEARNING",
+        programme_code: formData.programme_code || null,
+        examination_name: (formData.examination_name || "").trim() || null,
+        examination_authority: (formData.examination_authority || "").trim() || null,
+        target_purpose: (formData.target_purpose || "").trim() || null,
+        is_active: formData.is_active !== false,
       };
       await updateCourse(id, payload);
       setSuccess("Course updated successfully.");

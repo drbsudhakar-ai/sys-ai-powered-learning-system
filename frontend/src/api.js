@@ -39,7 +39,8 @@ export const loginUser = (data) =>
   API.post("/auth/login", new URLSearchParams(data));
 export const getMe = () => API.get("/auth/me");
 
-export const getCourses = () => API.get("/courses/");
+export const getCourses = (params) => API.get("/courses/", { params });
+export const getMyProgrammes = () => API.get("/courses/me");
 export const getCourse = (id) => API.get(`/courses/${id}`);
 export const createCourse = (data) => API.post("/courses/", data);
 export const updateCourse = (id, data) => API.put(`/courses/${id}`, data);

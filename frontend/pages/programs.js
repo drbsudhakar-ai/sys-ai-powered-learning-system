@@ -48,7 +48,7 @@ const programs = [
   {
     id: "communication-skills",
     number: "03",
-    title: "Communication Skills",
+    title: "English Communication",
     short:
       "Improve speaking, writing, confidence and communication through guided AI-powered practice.",
     description:
@@ -67,7 +67,7 @@ const programs = [
   {
     id: "ai-counsellor",
     number: "04",
-    title: "AI Counsellor",
+    title: "Motivation & Support",
     short:
       "Personalized guidance, motivation and encouragement tailored to the learner's journey.",
     description:

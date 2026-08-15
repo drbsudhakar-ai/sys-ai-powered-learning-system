@@ -32,8 +32,15 @@ def enroll_self(
     course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    if course.is_active is False:
+        raise HTTPException(status_code=409, detail="This programme is not currently active")
     eng.ensure_enrollment(db, current_user.id, course_id)
-    return {"ok": True, "course_id": course_id}
+    return {
+        "ok": True,
+        "course_id": course_id,
+        "programme_category": course.programme_category,
+        "programme_code": course.programme_code,
+    }
 
 
 @router.get("/student/assessments")

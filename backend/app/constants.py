@@ -523,3 +523,21 @@ LEARNING_HIERARCHY_RANKS = {
     "CURRICULUM": 8,
     "ENRICHMENT": 9,
 }
+
+# =========================
+# P0-018 Course / Learning Programme
+# =========================
+# A SYS Course is a goal-oriented preparation or learning programme
+# (not necessarily a conventional academic degree course).
+PROGRAMME_CATEGORIES = (
+    "HIGHER_EDUCATION_ENTRANCE",
+    "EMPLOYMENT_EXAM",
+    "INDEPENDENT_LEARNING",
+    "SKILL_DEVELOPMENT",
+)
+
+DEFAULT_PROGRAMME_CATEGORY = "INDEPENDENT_LEARNING"
+
+# Reserved programme_code for the independent English Communication programme.
+# Does not implement the English Communication Agent.
+PROGRAMME_CODE_ENGLISH_COMMUNICATION = "ENGLISH_COMMUNICATION"
