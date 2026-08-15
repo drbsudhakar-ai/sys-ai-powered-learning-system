@@ -117,6 +117,13 @@ NOTIFICATION_EVENTS = (
     "PERSISTENT_LEARNING_GAP_ALERT",
     "IMPROVEMENT_MILESTONE",
     "FACULTY_ATTENTION_SUMMARY",
+    # P0-017 Learning Orchestration
+    "NEXT_LEARNING_ACTION_AVAILABLE",
+    "REASSESSMENT_READY",
+    "REMEDIAL_ACTION_REQUIRED",
+    "LEARNING_PLAN_REMINDER",
+    "SUPPORT_RECOMMENDED",
+    "MASTERY_MILESTONE",
 )
 
 NOTIFICATION_STATUSES = (
@@ -443,3 +450,76 @@ DEFAULT_LIMITED_IMPROVEMENT_POINTS = 5.0
 
 # Additional notification events for analytics attention signals
 # (appended to NOTIFICATION_EVENTS via runtime registration in this module section)
+
+# =========================
+# P0-017 Learning Orchestration
+# =========================
+LEARNING_ACTION_TYPES = (
+    "CONTINUE_LEARNING",
+    "REVIEW_TOPIC",
+    "WATCH_LECTURE",
+    "START_AI_LECTURE",
+    "ASK_LECTURER",
+    "PRACTICE",
+    "ADAPTIVE_PRACTICE",
+    "COMPLETE_REMEDIATION",
+    "SELF_STUDY",
+    "HUMAN_EXPERT_SUPPORT",
+    "TAKE_ASSESSMENT",
+    "TAKE_REASSESSMENT",
+    "REVIEW_MISTAKES",
+    "MOVE_TO_NEXT_TOPIC",
+    "RETRY",
+    "WAIT_FOR_FACULTY_ACTION",
+)
+
+LEARNING_ACTION_PRIORITIES = (
+    "CRITICAL",
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+    "OPTIONAL",
+)
+
+LEARNING_ACTION_STATUSES = (
+    "RECOMMENDED",
+    "ACCEPTED",
+    "STARTED",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "SUPERSEDED",
+    "EXPIRED",
+    "CANCELLED",
+)
+
+LEARNING_ACTION_OPEN_STATUSES = (
+    "RECOMMENDED",
+    "ACCEPTED",
+    "STARTED",
+    "IN_PROGRESS",
+)
+
+LEARNING_JOURNEY_STATES = (
+    "NOT_STARTED",
+    "IN_PROGRESS",
+    "WAITING_FOR_ACTION",
+    "READY_FOR_ASSESSMENT",
+    "READY_FOR_REASSESSMENT",
+    "COMPLETED",
+    "BLOCKED",
+    "NEEDS_SUPPORT",
+    "MASTERED",
+)
+
+# Decision hierarchy rank (lower = higher precedence). Respects P0-014/015/016 authority.
+LEARNING_HIERARCHY_RANKS = {
+    "UNFINISHED": 1,
+    "REMEDIATION": 2,
+    "FAILED_REASSESSMENT": 3,
+    "PERSISTENT_GAP": 4,
+    "ADAPTIVE_PRACTICE": 5,
+    "TOPIC_LEARNING": 6,
+    "REASSESSMENT": 7,
+    "CURRICULUM": 8,
+    "ENRICHMENT": 9,
+}

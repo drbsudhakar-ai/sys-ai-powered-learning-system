@@ -1009,6 +1009,46 @@ class AdaptivePracticeAssignment(Base):
 
 
 # =========================
+# Learning Orchestration (P0-017) — coordination state only
+# =========================
+
+class LearningJourneyAction(Base):
+    """Orchestration recommendation / lifecycle. Does not store mastery, gaps, or scores."""
+    __tablename__ = "learning_journey_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    stable_key = Column(String(200), nullable=False, index=True)
+    action_type = Column(String(40), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    reason = Column(Text, nullable=False)
+    priority = Column(String(20), nullable=False, server_default="MEDIUM", default="MEDIUM")
+    status = Column(String(20), nullable=False, server_default="RECOMMENDED", default="RECOMMENDED")
+    source = Column(String(40), nullable=False)
+    hierarchy_group = Column(String(40), nullable=True)
+    target_subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
+    target_topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
+    resource_reference = Column(JSON, nullable=True)
+    prerequisites = Column(JSON, nullable=True)
+    explanation = Column(JSON, nullable=True)
+    mandatory = Column(Boolean, nullable=False, server_default="false", default=False)
+    chosen_alternative = Column(String(40), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_notified_at = Column(DateTime(timezone=True), nullable=True)
+
+    student = relationship("User", foreign_keys=[student_id])
+    course = relationship("Course")
+    topic = relationship("Topic", foreign_keys=[target_topic_id])
+    subject = relationship("Subject", foreign_keys=[target_subject_id])
+
+
+# =========================
 # Resource Model
 # =========================
 

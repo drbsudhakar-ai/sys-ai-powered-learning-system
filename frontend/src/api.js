@@ -262,4 +262,30 @@ export const getAdminAnalyticsSubjects = (courseId) =>
 export const getAdminAnalyticsTrends = (params) => API.get("/analytics/admin/trends", { params });
 export const getAdminAnalyticsAttention = (params) => API.get("/analytics/admin/attention", { params });
 
+// P0-017 Personalized Learning Journey
+export const getMyLearningJourney = (courseId) =>
+  API.get("/learning-journey/me", { params: { course_id: courseId } });
+export const getMyNextLearningAction = (courseId) =>
+  API.get("/learning-journey/me/next", { params: { course_id: courseId } });
+export const getMyLearningActions = (courseId) =>
+  API.get("/learning-journey/me/actions", { params: { course_id: courseId } });
+export const getMyLearningProgress = (courseId) =>
+  API.get("/learning-journey/me/progress", { params: { course_id: courseId } });
+export const startLearningAction = (actionId) =>
+  API.post(`/learning-journey/me/actions/${actionId}/start`);
+export const completeLearningAction = (actionId) =>
+  API.post(`/learning-journey/me/actions/${actionId}/complete`);
+export const dismissLearningAction = (actionId) =>
+  API.post(`/learning-journey/me/actions/${actionId}/dismiss`);
+export const chooseLearningAction = (actionId, data) =>
+  API.post(`/learning-journey/me/actions/${actionId}/choose`, data);
+export const getFacultyJourneyStudents = (courseId) =>
+  API.get("/learning-journey/faculty/students", { params: { course_id: courseId } });
+export const getFacultyJourneyStudent = (studentId, courseId) =>
+  API.get(`/learning-journey/faculty/students/${studentId}`, { params: { course_id: courseId } });
+export const recommendFacultyJourneyAction = (studentId, data) =>
+  API.post(`/learning-journey/faculty/students/${studentId}/recommend`, data);
+export const getAdminJourneyOverview = (params) =>
+  API.get("/learning-journey/admin/overview", { params });
+
 export default API;

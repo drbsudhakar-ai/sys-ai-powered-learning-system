@@ -822,6 +822,18 @@ class MasteryDeclareReady(BaseModel):
     remediation_source: Optional[str] = "SELF_STUDY"
 
 
+# P0-017 Learning Journey
+class LearningActionChoose(BaseModel):
+    choice_action_id: Optional[int] = None
+
+
+class FacultyJourneyRecommend(BaseModel):
+    course_id: int
+    action_type: str
+    topic_id: Optional[int] = None
+    reason: Optional[str] = None
+
+
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]
     course: Dict[str, Any]

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { getMe, getCourses } from "../src/api";
+import { getMe, getCourses, getMyNextLearningAction } from "../src/api";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [courses, setCourses] = useState([]);
+  const [nextAction, setNextAction] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,6 +16,14 @@ export default function DashboardPage() {
 
         const coursesRes = await getCourses();
         setCourses(coursesRes.data);
+        if ((userRes.data.role || "").toLowerCase() === "student" && coursesRes.data?.[0]) {
+          try {
+            const nxt = await getMyNextLearningAction(coursesRes.data[0].id);
+            setNextAction(nxt.data);
+          } catch {
+            setNextAction(null);
+          }
+        }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
       } finally {
@@ -67,6 +76,17 @@ export default function DashboardPage() {
               Welcome back, {user?.name}!
             </h2>
           </div>
+
+          {nextAction?.next_best_action ? (
+            <section className="mb-8 sys-card p-4" aria-labelledby="dash-next">
+              <h3 id="dash-next" className="text-lg font-bold text-sys-gray">Next best action</h3>
+              <p className="mt-2 font-semibold">{nextAction.next_best_action.title}</p>
+              <p className="mt-1 text-sm text-gray-600">{nextAction.next_best_action.reason}</p>
+              <a href="/learning-journey/me" className="mt-3 inline-block text-sm font-semibold text-sys-blue underline">
+                Open my learning journey
+              </a>
+            </section>
+          ) : null}
 
           {/* Course Overview */}
           <section className="mb-8">

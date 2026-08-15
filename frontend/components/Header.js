@@ -146,6 +146,40 @@ export default function Header() {
           </Link>
 
           <Link
+            href="/learning-journey/me"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            My Journey
+          </Link>
+
+          <Link
+            href="/learning-journey"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            Journeys
+          </Link>
+
+          <Link
             href="/student/assessments"
             className="
               rounded-xl
