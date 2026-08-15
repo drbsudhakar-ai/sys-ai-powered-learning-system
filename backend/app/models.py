@@ -817,6 +817,101 @@ class LearningEvidence(Base):
 
 
 # =========================
+# Remedial Learning (P0-014)
+# =========================
+
+class RemedialGroup(Base):
+    """Explainable remedial cohort formed from similar P0-012 learning gaps."""
+    __tablename__ = "remedial_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True, index=True)
+    scope_type = Column(String(30), nullable=False)  # TOPIC|SUBJECT|CONCEPT|...
+    scope_id = Column(Integer, nullable=True)
+    scope_name = Column(String(200), nullable=False)
+    severity = Column(String(20), nullable=False)  # low|moderate|high|critical
+    status = Column(String(20), nullable=False, server_default="PROPOSED", default="PROPOSED")
+    explanation = Column(JSON, nullable=False)  # why grouped
+    similarity = Column(JSON, nullable=True)  # signals / score
+    learning_session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    course = relationship("Course")
+    subject = relationship("Subject")
+    topic = relationship("Topic")
+    learning_session = relationship("LearningSession", foreign_keys=[learning_session_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    members = relationship(
+        "RemedialGroupMember",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+    interventions = relationship(
+        "RemedialIntervention",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+
+class RemedialGroupMember(Base):
+    __tablename__ = "remedial_group_members"
+    __table_args__ = (
+        UniqueConstraint("group_id", "student_id", name="uq_remedial_group_member"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("remedial_groups.id"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    learning_gap_id = Column(Integer, ForeignKey("learning_gaps.id", ondelete="SET NULL"), nullable=True)
+    gap_snapshot = Column(JSON, nullable=False)
+    status = Column(String(20), nullable=False, server_default="INVITED", default="INVITED")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    group = relationship("RemedialGroup", back_populates="members")
+    student = relationship("User", foreign_keys=[student_id])
+    learning_gap = relationship("LearningGap", foreign_keys=[learning_gap_id])
+
+
+class RemedialIntervention(Base):
+    """Intervention plan linked to P0-013 learning session (group or individual)."""
+    __tablename__ = "remedial_interventions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # null for group-shared
+    group_id = Column(Integer, ForeignKey("remedial_groups.id"), nullable=True, index=True)
+    learning_gap_id = Column(Integer, ForeignKey("learning_gaps.id", ondelete="SET NULL"), nullable=True)
+    gap_snapshot = Column(JSON, nullable=False)
+    intervention_type = Column(String(50), nullable=False)
+    mode = Column(String(20), nullable=False)  # COMMON|INDIVIDUAL|HYBRID
+    priority_rank = Column(Integer, nullable=False, default=1)
+    priority_explanation = Column(Text, nullable=True)
+    plan = Column(JSON, nullable=False)
+    explanation = Column(JSON, nullable=False)
+    status = Column(String(20), nullable=False, server_default="DRAFT", default="DRAFT")
+    outcome = Column(String(20), nullable=False, server_default="PENDING", default="PENDING")
+    reassessment_required = Column(Boolean, nullable=False, server_default="false", default=False)
+    reassessment_completed = Column(Boolean, nullable=False, server_default="false", default=False)
+    learning_session_id = Column(Integer, ForeignKey("learning_sessions.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    course = relationship("Course")
+    student = relationship("User", foreign_keys=[student_id])
+    group = relationship("RemedialGroup", back_populates="interventions")
+    learning_gap = relationship("LearningGap", foreign_keys=[learning_gap_id])
+    learning_session = relationship("LearningSession", foreign_keys=[learning_session_id])
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+# =========================
 # Resource Model
 # =========================
 

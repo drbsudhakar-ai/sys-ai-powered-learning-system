@@ -744,6 +744,23 @@ class LearningSessionProgressOut(BaseModel):
     participants: List[LearningParticipantProgressOut] = []
 
 
+# P0-014 Remedial
+class RemedialStatusChange(BaseModel):
+    status: str
+
+
+class RemedialIndividualCreate(BaseModel):
+    course_id: int
+    learning_gap_id: int
+
+
+class RemedialInterventionUpdate(BaseModel):
+    status: Optional[str] = None
+    outcome: Optional[str] = None
+    reassessment_required: Optional[bool] = None
+    reassessment_completed: Optional[bool] = None
+
+
 # P0-013.4 Digital classroom / AI Lecturer
 class LectureStepControlIn(BaseModel):
     action: str

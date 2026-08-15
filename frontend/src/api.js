@@ -180,4 +180,28 @@ export const lectureControl = (sessionId, data) =>
 export const lectureInteract = (sessionId, data) =>
   API.post(`/learning-sessions/${sessionId}/lecture/interact`, data);
 
+// P0-014 Remedial Learning
+export const listRemedialGaps = (courseId, params) =>
+  API.get(`/remedial/courses/${courseId}/gaps`, { params });
+export const prioritizeRemedialGaps = (courseId, studentId) =>
+  API.get(`/remedial/courses/${courseId}/gaps/prioritized`, { params: { student_id: studentId } });
+export const proposeRemedialGroups = (courseId, persist = true) =>
+  API.post(`/remedial/courses/${courseId}/proposals`, null, { params: { persist } });
+export const listRemedialGroups = (params) => API.get("/remedial/groups", { params });
+export const getRemedialGroup = (id) => API.get(`/remedial/groups/${id}`);
+export const activateRemedialGroup = (id) => API.post(`/remedial/groups/${id}/activate`);
+export const transitionRemedialGroup = (id, data) =>
+  API.post(`/remedial/groups/${id}/transition`, data);
+export const createGroupIntervention = (groupId) =>
+  API.post(`/remedial/groups/${groupId}/intervention`);
+export const createIndividualIntervention = (data) =>
+  API.post("/remedial/interventions/individual", data);
+export const activateRemedialIntervention = (id) =>
+  API.post(`/remedial/interventions/${id}/activate`);
+export const listRemedialInterventions = (params) => API.get("/remedial/interventions", { params });
+export const getRemedialIntervention = (id) => API.get(`/remedial/interventions/${id}`);
+export const patchRemedialIntervention = (id, data) =>
+  API.patch(`/remedial/interventions/${id}`, data);
+export const getMyRemedial = (params) => API.get("/remedial/me", { params });
+
 export default API;

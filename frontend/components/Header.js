@@ -180,6 +180,40 @@ export default function Header() {
           </Link>
 
           <Link
+            href="/remedial"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            Remedial
+          </Link>
+
+          <Link
+            href="/remedial/me"
+            className="
+              rounded-xl
+              px-5
+              py-2.5
+              text-sm
+              font-semibold
+              text-purple-100/70
+              transition
+              hover:bg-white/10
+              hover:text-white
+            "
+          >
+            My Remedial
+          </Link>
+
+          <Link
             href="/question-bank"
             className="
               rounded-xl
