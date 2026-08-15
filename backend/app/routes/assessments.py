@@ -95,9 +95,12 @@ def create_assessment(
         payload.total_marks,
     )
 
-    if payload.assessment_type == "TOPIC_TEST":
+    if payload.assessment_type in ("TOPIC_TEST", "ADAPTIVE_PRACTICE", "TOPIC_REASSESSMENT"):
         if not payload.subject_id or not payload.topic_id:
-            raise HTTPException(status_code=422, detail="Topic Test requires subject_id and topic_id")
+            raise HTTPException(
+                status_code=422,
+                detail="Topic-scoped assessments require subject_id and topic_id",
+            )
         topic = db.query(models.Topic).filter(models.Topic.id == payload.topic_id).first()
         if not topic or topic.subject_id != payload.subject_id:
             raise HTTPException(status_code=422, detail="Topic does not belong to subject")

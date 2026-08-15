@@ -584,6 +584,15 @@ def run_post_evaluation_pipeline(db: Session, attempt: models.AssessmentAttempt)
     if not analysis:
         return {}
 
+    # P0-015 mastery / adaptive practice evaluation (deterministic; does not replace analyzer)
+    mastery_result = {}
+    try:
+        from app.services import mastery_engine as mastery
+
+        mastery_result = mastery.process_attempt_for_mastery(db, attempt) or {}
+    except Exception:
+        mastery_result = {}
+
     a_type = attempt.assessment.assessment_type if attempt.assessment else None
     link = f"/performance/student?student_id={attempt.student_id}&course_id={attempt.course_id}"
     overall = analysis.get("overall") or {}
@@ -702,4 +711,6 @@ def run_post_evaluation_pipeline(db: Session, attempt: models.AssessmentAttempt)
         )
     except Exception:
         pass
+    if isinstance(analysis, dict):
+        analysis["mastery_engine"] = mastery_result
     return analysis

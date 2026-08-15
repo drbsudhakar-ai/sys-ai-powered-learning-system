@@ -912,6 +912,103 @@ class RemedialIntervention(Base):
 
 
 # =========================
+# Adaptive Practice & Mastery (P0-015)
+# =========================
+
+class MasteryPolicy(Base):
+    """Configurable mastery thresholds (course override or global when course_id is null)."""
+    __tablename__ = "mastery_policies"
+    __table_args__ = (
+        UniqueConstraint("course_id", name="uq_mastery_policy_course"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True, index=True)
+    mastery_threshold = Column(Float, nullable=False, server_default="80", default=80.0)
+    practice_threshold = Column(Float, nullable=False, server_default="70", default=70.0)
+    reassessment_threshold = Column(Float, nullable=False, server_default="80", default=80.0)
+    min_reassessment_questions = Column(Integer, nullable=False, server_default="5", default=5)
+    regression_drop_points = Column(Float, nullable=False, server_default="25", default=25.0)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    course = relationship("Course")
+
+
+class TopicMasteryState(Base):
+    """Authoritative current mastery interpretation for a student+topic (not duplicated scores)."""
+    __tablename__ = "topic_mastery_states"
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", "topic_id", name="uq_topic_mastery_student_course_topic"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True, index=True)
+    status = Column(String(40), nullable=False, server_default="NOT_ASSESSED", default="NOT_ASSESSED")
+    indicator = Column(String(20), nullable=False, server_default="GRAY", default="GRAY")
+    mastery_percent = Column(Float, nullable=True)
+    practice_accuracy = Column(Float, nullable=True)
+    target_difficulty = Column(String(20), nullable=False, server_default="EASY", default="EASY")
+    remediation_source = Column(String(40), nullable=True)
+    eligibility_flags = Column(JSON, nullable=True)
+    explanation = Column(JSON, nullable=True)
+    last_practice_attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=True)
+    last_reassessment_attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=True)
+    last_decision_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    student = relationship("User", foreign_keys=[student_id])
+    course = relationship("Course")
+    topic = relationship("Topic")
+    subject = relationship("Subject")
+
+
+class MasteryEvent(Base):
+    """Append-only mastery decision / practice history (preserves evidence trail)."""
+    __tablename__ = "mastery_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False, index=True)
+    from_status = Column(String(40), nullable=True)
+    to_status = Column(String(40), nullable=True)
+    attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=True)
+    assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=True)
+    evidence = Column(JSON, nullable=True)
+    explanation = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    student = relationship("User", foreign_keys=[student_id])
+
+
+class AdaptivePracticeAssignment(Base):
+    """Links adaptive practice / reassessment intents to published P0-011 assessments."""
+    __tablename__ = "adaptive_practice_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False, index=True)
+    purpose = Column(String(30), nullable=False)  # PRACTICE | REASSESSMENT
+    assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=False)
+    difficulty = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, server_default="READY", default="READY")
+    recommendation = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_attempt_id = Column(Integer, ForeignKey("assessment_attempts.id"), nullable=True)
+
+    student = relationship("User", foreign_keys=[student_id])
+    assessment = relationship("Assessment")
+    topic = relationship("Topic")
+
+
+# =========================
 # Resource Model
 # =========================
 

@@ -799,6 +799,29 @@ class LectureStateOut(BaseModel):
     participant_progress: Optional[Dict[str, Any]] = None
 
 
+# P0-015 Mastery
+class MasteryPolicyUpdate(BaseModel):
+    course_id: Optional[int] = None
+    mastery_threshold: Optional[float] = None
+    practice_threshold: Optional[float] = None
+    reassessment_threshold: Optional[float] = None
+    min_reassessment_questions: Optional[int] = None
+    regression_drop_points: Optional[float] = None
+
+
+class MasteryTopicAction(BaseModel):
+    course_id: int
+    topic_id: int
+    student_id: Optional[int] = None
+
+
+class MasteryDeclareReady(BaseModel):
+    course_id: int
+    topic_id: int
+    student_id: Optional[int] = None
+    remediation_source: Optional[str] = "SELF_STUDY"
+
+
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]
     course: Dict[str, Any]

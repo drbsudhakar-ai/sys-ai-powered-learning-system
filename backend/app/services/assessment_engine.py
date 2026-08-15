@@ -83,13 +83,13 @@ def validate_blueprint(
         if len(subjects) < 1:
             errors.append("Multi-subject assessments require at least one subject in blueprint")
 
-    if assessment.assessment_type == "TOPIC_TEST":
+    if assessment.assessment_type in ("TOPIC_TEST", "ADAPTIVE_PRACTICE", "TOPIC_REASSESSMENT"):
         subjects = {i.subject_id for i in items}
         topics = {i.topic_id for i in items if i.topic_id}
         if len(subjects) > 1:
-            errors.append("Topic Test blueprint must use a single subject")
+            errors.append("Topic-scoped assessment blueprint must use a single subject")
         if assessment.topic_id and topics and assessment.topic_id not in topics:
-            errors.append("Topic Test blueprint topics must match assessment topic")
+            errors.append("Topic-scoped blueprint topics must match assessment topic")
 
     return errors
 

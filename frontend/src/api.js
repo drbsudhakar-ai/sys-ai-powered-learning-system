@@ -204,4 +204,22 @@ export const patchRemedialIntervention = (id, data) =>
   API.patch(`/remedial/interventions/${id}`, data);
 export const getMyRemedial = (params) => API.get("/remedial/me", { params });
 
+// P0-015 Adaptive Practice & Mastery
+export const getMasteryPolicy = (courseId) =>
+  API.get("/mastery/policy", { params: courseId != null ? { course_id: courseId } : {} });
+export const updateMasteryPolicy = (data) => API.put("/mastery/policy", data);
+export const getMyMastery = (courseId) => API.get("/mastery/me", { params: { course_id: courseId } });
+export const getStudentMastery = (studentId, courseId, sync = true) =>
+  API.get(`/mastery/students/${studentId}/courses/${courseId}`, { params: { sync } });
+export const getTopicMastery = (studentId, courseId, topicId) =>
+  API.get(`/mastery/students/${studentId}/courses/${courseId}/topics/${topicId}`);
+export const recommendPractice = (data) => API.post("/mastery/practice/recommend", data);
+export const startPractice = (data) => API.post("/mastery/practice/start", data);
+export const getReassessmentEligibility = (params) =>
+  API.get("/mastery/reassessment/eligibility", { params });
+export const declareReassessmentReady = (data) =>
+  API.post("/mastery/reassessment/declare-ready", data);
+export const approveReassessment = (data) => API.post("/mastery/reassessment/approve", data);
+export const startReassessment = (data) => API.post("/mastery/reassessment/start", data);
+
 export default API;
