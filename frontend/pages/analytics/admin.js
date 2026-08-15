@@ -6,6 +6,7 @@ import {
   getAdminAnalyticsOverview,
   getAdminAnalyticsSubjects,
   getAdminAnalyticsTrends,
+  getAdminCourseBalance,
   getApiErrorMessage,
   getCourses,
   getMe,
@@ -20,20 +21,23 @@ export default function AdminLearningIntelligencePage() {
   const [subjects, setSubjects] = useState(null);
   const [trends, setTrends] = useState(null);
   const [attention, setAttention] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [error, setError] = useState("");
 
   const load = async (cid) => {
     const params = cid ? { course_id: cid } : {};
-    const [ov, crs, tr, att] = await Promise.all([
+    const [ov, crs, tr, att, bal] = await Promise.all([
       getAdminAnalyticsOverview(params),
       getAdminAnalyticsCourses(),
       getAdminAnalyticsTrends(params),
       getAdminAnalyticsAttention(params),
+      getAdminCourseBalance(params),
     ]);
     setOverview(ov.data);
     setCourseRows(crs.data);
     setTrends(tr.data);
     setAttention(att.data);
+    setBalance(bal.data);
     if (cid) {
       const sub = await getAdminAnalyticsSubjects(cid);
       setSubjects(sub.data);
@@ -130,6 +134,25 @@ export default function AdminLearningIntelligencePage() {
           ))}
         </ul>
       </section>
+
+      {balance ? (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold text-[var(--sys-blue)]">Course balance</h2>
+          <p className="mt-1 text-xs text-[var(--sys-gray)]">{balance.note}</p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {(balance.courses || []).map((c) => (
+              <li key={c.course_id} className="sys-card !max-w-none">
+                <strong>{c.course_title}</strong> — attention {c.attention_count}
+                <span className="ml-2 text-[var(--sys-gray)]">
+                  {Object.entries(c.status_counts || {})
+                    .map(([k, v]) => `${k.replaceAll("_", " ")}=${v}`)
+                    .join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {subjects ? (
         <section className="mt-8">

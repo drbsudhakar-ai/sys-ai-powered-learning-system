@@ -854,6 +854,14 @@ class FacultyJourneyRecommend(BaseModel):
     reason: Optional[str] = None
 
 
+class TopicPrerequisiteCreate(BaseModel):
+    prerequisite_topic_id: int
+
+
+class SubjectTopicChoose(BaseModel):
+    topic_id: int
+
+
 class PerformanceSheetOut(BaseModel):
     student: Dict[str, Any]
     course: Dict[str, Any]

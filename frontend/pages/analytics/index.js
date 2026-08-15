@@ -7,6 +7,7 @@ import {
   getFacultyAnalyticsInterventions,
   getFacultyAnalyticsOverview,
   getFacultyAnalyticsTopics,
+  getFacultyCourseBalance,
   getMe,
   notifyFacultyAttention,
 } from "../../src/api";
@@ -20,20 +21,23 @@ export default function FacultyLearningIntelligencePage() {
   const [topics, setTopics] = useState(null);
   const [attention, setAttention] = useState(null);
   const [interventions, setInterventions] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   const load = async (cid) => {
-    const [ov, tp, att, iv] = await Promise.all([
+    const [ov, tp, att, iv, bal] = await Promise.all([
       getFacultyAnalyticsOverview(cid),
       getFacultyAnalyticsTopics(cid),
       getFacultyAnalyticsAttention(cid),
       getFacultyAnalyticsInterventions(cid),
+      getFacultyCourseBalance(cid),
     ]);
     setOverview(ov.data);
     setTopics(tp.data);
     setAttention(att.data);
     setInterventions(iv.data);
+    setBalance(bal.data);
   };
 
   useEffect(() => {
@@ -133,6 +137,31 @@ export default function FacultyLearningIntelligencePage() {
               .map(([k, v]) => `${k}=${v}`)
               .join(" · ") || "—"}
           </p>
+        </section>
+      ) : null}
+
+      {balance ? (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold text-[var(--sys-blue)]">Subject imbalance</h2>
+          <p className="mt-1 text-xs text-[var(--sys-gray)]">{balance.note}</p>
+          <p className="mt-2 text-sm">
+            {Object.entries(balance.status_counts || {})
+              .map(([k, v]) => `${k.replaceAll("_", " ")}=${v}`)
+              .join(" · ")}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {(balance.students_needing_attention || []).map((s) => (
+              <li key={s.student_id} className="sys-card !max-w-none text-sm">
+                <p className="font-semibold">
+                  {s.student_name || s.student_id} · {(s.balance_status || "").replaceAll("_", " ")}
+                </p>
+                <p>{s.reason}</p>
+                {s.lagging_subject?.subject_name ? (
+                  <p className="text-[var(--sys-gray)]">Lagging: {s.lagging_subject.subject_name}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

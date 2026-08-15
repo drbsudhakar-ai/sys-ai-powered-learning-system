@@ -254,3 +254,41 @@ def admin_attention(
     current_user: models.User = Depends(get_current_user),
 ):
     return la.admin_attention(db, current_user, course_id=course_id, limit=limit)
+
+
+@router.get("/me/courses/{course_id}/balance")
+def my_course_balance(
+    course_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    from app.services import subject_progression as sp
+
+    sp._authorize_student_view(db, current_user, current_user.id, course_id)
+    if (current_user.role or "").lower() == "student":
+        sp._require_enrollment(db, current_user.id, course_id)
+    data = sp.evaluate_course_balance(db, student_id=current_user.id, course_id=course_id)
+    sp.maybe_notify_imbalance(db, student_id=current_user.id, course_id=course_id, balance=data)
+    return data
+
+
+@router.get("/faculty/courses/{course_id}/balance")
+def faculty_course_balance(
+    course_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    from app.services import subject_progression as sp
+
+    return sp.faculty_course_balance(db, current_user, course_id=course_id)
+
+
+@router.get("/admin/balance")
+def admin_balance(
+    course_id: Optional[int] = Query(None),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    from app.services import subject_progression as sp
+
+    return sp.admin_balance_overview(db, current_user, course_id=course_id)

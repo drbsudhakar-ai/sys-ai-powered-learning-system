@@ -137,3 +137,31 @@ def create_question(
     db.commit()
     db.refresh(q)
     return q
+
+
+@router.get("/topics/{topic_id}/prerequisites")
+def get_topic_prerequisites(
+    topic_id: int,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(get_current_user),
+):
+    topic = db.query(models.Topic).filter(models.Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    from app.services import subject_progression as sp
+
+    return {"topic_id": topic_id, "prerequisites": sp.list_prerequisites(db, topic_id)}
+
+
+@router.post("/topics/{topic_id}/prerequisites", status_code=status.HTTP_201_CREATED)
+def add_topic_prerequisite(
+    topic_id: int,
+    payload: schemas.TopicPrerequisiteCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(_staff),
+):
+    from app.services import subject_progression as sp
+
+    return sp.add_prerequisite(
+        db, current_user, topic_id=topic_id, prerequisite_topic_id=payload.prerequisite_topic_id
+    )

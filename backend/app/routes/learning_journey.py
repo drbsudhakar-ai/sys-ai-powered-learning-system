@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas, database
 from app.routes.auth import get_current_user
 from app.services import learning_orchestrator as orch
+from app.services import subject_progression as sp
 
 router = APIRouter(prefix="/learning-journey", tags=["Learning Journey"])
 
@@ -15,12 +16,46 @@ router = APIRouter(prefix="/learning-journey", tags=["Learning Journey"])
 @router.get("/me")
 def my_journey(
     course_id: int = Query(...),
+    subject_id: Optional[int] = Query(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return orch.build_journey(
+    data = orch.build_journey(
         db, current_user, student_id=current_user.id, course_id=course_id
     )
+    subjects = sp.list_course_subjects(
+        db, current_user, student_id=current_user.id, course_id=course_id
+    )
+    data["subjects"] = subjects["subjects"]
+    data["subject_order_imposed"] = False
+    sid = subject_id or sp.last_focused_subject_id(
+        db, student_id=current_user.id, course_id=course_id
+    )
+    if sid:
+        data["subject_guidance"] = sp.subject_view(
+            db,
+            current_user,
+            student_id=current_user.id,
+            course_id=course_id,
+            subject_id=sid,
+            notify=True,
+        )
+    else:
+        bal = sp.evaluate_course_balance(
+            db, student_id=current_user.id, course_id=course_id
+        )
+        sp.maybe_notify_imbalance(
+            db, student_id=current_user.id, course_id=course_id, balance=bal
+        )
+        data["course_balance"] = {
+            "status": bal["balance_status"],
+            "reason": bal["reason"],
+            "subjects": bal["subjects"],
+            "lagging_subject": bal.get("lagging_subject"),
+            "does_not_force_subject_switch": True,
+        }
+        data["subject_guidance"] = None
+    return data
 
 
 @router.get("/me/next")
@@ -106,7 +141,16 @@ def faculty_students(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return orch.faculty_students(db, current_user, course_id=course_id)
+    data = orch.faculty_students(db, current_user, course_id=course_id)
+    for row in data.get("students") or []:
+        bal = sp.evaluate_course_balance(
+            db, student_id=row["student_id"], course_id=course_id
+        )
+        row["balance_status"] = bal["balance_status"]
+        lag = bal.get("lagging_subject") or {}
+        row["lagging_subject"] = lag.get("subject_name")
+        row["balance_reason"] = bal.get("reason")
+    return data
 
 
 @router.get("/faculty/students/{student_id}")
@@ -116,9 +160,17 @@ def faculty_student(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return orch.faculty_student(
+    data = orch.faculty_student(
         db, current_user, student_id=student_id, course_id=course_id
     )
+    data["subjects"] = sp.list_course_subjects(
+        db, current_user, student_id=student_id, course_id=course_id
+    )["subjects"]
+    data["subject_order_imposed"] = False
+    data["course_balance"] = sp.evaluate_course_balance(
+        db, student_id=student_id, course_id=course_id
+    )
+    return data
 
 
 @router.post("/faculty/students/{student_id}/recommend")
@@ -146,3 +198,93 @@ def admin_overview(
     current_user: models.User = Depends(get_current_user),
 ):
     return orch.admin_overview(db, current_user, course_id=course_id)
+
+
+@router.get("/me/subjects")
+def my_subjects(
+    course_id: int = Query(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return sp.list_course_subjects(
+        db, current_user, student_id=current_user.id, course_id=course_id
+    )
+
+
+@router.get("/me/subjects/{subject_id}")
+def my_subject(
+    subject_id: int,
+    course_id: int = Query(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return sp.subject_view(
+        db,
+        current_user,
+        student_id=current_user.id,
+        course_id=course_id,
+        subject_id=subject_id,
+        notify=True,
+    )
+
+
+@router.get("/me/subjects/{subject_id}/next")
+def my_subject_next(
+    subject_id: int,
+    course_id: int = Query(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    sp.focus_subject(
+        db,
+        current_user,
+        student_id=current_user.id,
+        course_id=course_id,
+        subject_id=subject_id,
+    )
+    rec = sp.recommend_topic_in_subject(
+        db, student_id=current_user.id, course_id=course_id, subject_id=subject_id
+    )
+    return rec
+
+
+@router.post("/me/subjects/{subject_id}/focus")
+def focus_my_subject(
+    subject_id: int,
+    course_id: int = Query(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    sp.focus_subject(
+        db,
+        current_user,
+        student_id=current_user.id,
+        course_id=course_id,
+        subject_id=subject_id,
+    )
+    return sp.subject_view(
+        db,
+        current_user,
+        student_id=current_user.id,
+        course_id=course_id,
+        subject_id=subject_id,
+        notify=False,
+    )
+
+
+@router.post("/me/subjects/{subject_id}/topics/choose")
+def choose_subject_topic(
+    subject_id: int,
+    payload: schemas.SubjectTopicChoose,
+    course_id: int = Query(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return sp.choose_topic(
+        db,
+        current_user,
+        student_id=current_user.id,
+        course_id=course_id,
+        subject_id=subject_id,
+        topic_id=payload.topic_id,
+    )

@@ -124,6 +124,7 @@ NOTIFICATION_EVENTS = (
     "LEARNING_PLAN_REMINDER",
     "SUPPORT_RECOMMENDED",
     "MASTERY_MILESTONE",
+    "SUBJECT_PROGRESS_IMBALANCE",
 )
 
 NOTIFICATION_STATUSES = (
@@ -439,6 +440,7 @@ EARLY_WARNING_CODES = (
     "REASSESSMENT_FAILURE",
     "MASTERY_REGRESSION",
     "POSITIVE_PROGRESS",
+    "SUBJECT_PROGRESS_IMBALANCE",
 )
 
 # Deterministic early-warning defaults (centrally configurable constants; no opaque risk score)
@@ -447,6 +449,13 @@ DEFAULT_MIN_BELOW_THRESHOLD_ATTEMPTS = 2
 DEFAULT_MIN_REASSESSMENT_FAILURES = 1
 DEFAULT_MIN_EVIDENCE_COUNT = 2
 DEFAULT_LIMITED_IMPROVEMENT_POINTS = 5.0
+
+# P0-019 course-level subject balance (coverage points, not an opaque risk score)
+DEFAULT_BALANCE_WATCH_POINTS = 25.0
+DEFAULT_BALANCE_ATTENTION_POINTS = 40.0
+DEFAULT_BALANCE_URGENT_POINTS = 55.0
+DEFAULT_BALANCE_LEAD_COVERAGE = 40.0
+DEFAULT_BALANCE_LEAD_MASTERED = 2
 
 # Additional notification events for analytics attention signals
 # (appended to NOTIFICATION_EVENTS via runtime registration in this module section)

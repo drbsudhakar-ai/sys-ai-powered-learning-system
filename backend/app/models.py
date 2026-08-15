@@ -1059,6 +1059,47 @@ class LearningJourneyAction(Base):
 
 
 # =========================
+# P0-019 Subject progression metadata (not academic facts)
+# =========================
+
+class TopicPrerequisite(Base):
+    """Authoritative same-subject prerequisite edge. Empty table = no invented graph."""
+    __tablename__ = "topic_prerequisites"
+    __table_args__ = (
+        UniqueConstraint("topic_id", "prerequisite_topic_id", name="uq_topic_prerequisite"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False, index=True)
+    prerequisite_topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    topic = relationship("Topic", foreign_keys=[topic_id])
+    prerequisite = relationship("Topic", foreign_keys=[prerequisite_topic_id])
+
+
+class StudentSubjectFocus(Base):
+    """Remembers last selected subject/topic override. Does not store mastery or scores."""
+    __tablename__ = "student_subject_focus"
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", "subject_id", name="uq_student_course_subject_focus"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False, index=True)
+    selected_topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True)
+    last_focused_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    student = relationship("User", foreign_keys=[student_id])
+    course = relationship("Course")
+    subject = relationship("Subject")
+    selected_topic = relationship("Topic", foreign_keys=[selected_topic_id])
+
+
+# =========================
 # Resource Model
 # =========================
 

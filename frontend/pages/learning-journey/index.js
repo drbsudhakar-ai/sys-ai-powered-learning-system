@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   getApiErrorMessage,
   getCourses,
+  getFacultyCourseBalance,
   getFacultyJourneyStudent,
   getFacultyJourneyStudents,
   getMe,
@@ -15,13 +16,18 @@ export default function FacultyLearningJourneyPage() {
   const [courseId, setCourseId] = useState("");
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
 
   const load = async (cid) => {
-    const res = await getFacultyJourneyStudents(cid);
+    const [res, bal] = await Promise.all([
+      getFacultyJourneyStudents(cid),
+      getFacultyCourseBalance(cid),
+    ]);
     setRows(res.data.students || []);
+    setBalance(bal.data);
   };
 
   useEffect(() => {
@@ -115,6 +121,7 @@ export default function FacultyLearningJourneyPage() {
               <th className="py-2 pr-3">Next action</th>
               <th className="py-2 pr-3">Reason</th>
               <th className="py-2 pr-3">Support</th>
+              <th className="py-2 pr-3">Course balance</th>
             </tr>
           </thead>
           <tbody>
@@ -129,11 +136,24 @@ export default function FacultyLearningJourneyPage() {
                 <td className="py-2 pr-3">{s.next_action_title || "—"}</td>
                 <td className="py-2 pr-3">{s.reason || "—"}</td>
                 <td className="py-2 pr-3">{s.support_needed ? "Yes" : "No"}</td>
+                <td className="py-2 pr-3">
+                  {(s.balance_status || "BALANCED").replaceAll("_", " ")}
+                  {s.lagging_subject ? ` · ${s.lagging_subject}` : ""}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {balance ? (
+        <p className="mt-3 text-sm text-[var(--sys-gray)]">
+          Course balance counts:{" "}
+          {Object.entries(balance.status_counts || {})
+            .map(([k, v]) => `${k.replaceAll("_", " ")}=${v}`)
+            .join(" · ")}
+        </p>
+      ) : null}
 
       {selected ? (
         <section className="sys-card mt-6 !max-w-none" aria-labelledby="detail-heading">
@@ -151,6 +171,17 @@ export default function FacultyLearningJourneyPage() {
           <p className="mt-1 text-xs text-[var(--sys-gray)]">
             Source: {selected.next_best_action?.source}. This view does not change mastery.
           </p>
+          {selected.course_balance?.balance_status &&
+          selected.course_balance.balance_status !== "BALANCED" ? (
+            <p className="mt-3 text-sm">
+              Course balance: {(selected.course_balance.balance_status || "").replaceAll("_", " ")}
+              {selected.course_balance.lagging_subject?.subject_name
+                ? ` — ${selected.course_balance.lagging_subject.subject_name} is behind.`
+                : ""}
+              {" "}
+              Advisory only; students may still choose any subject.
+            </p>
+          ) : null}
           <label className="mt-4 block text-sm" htmlFor="fac-reason">
             Advisory note
             <input

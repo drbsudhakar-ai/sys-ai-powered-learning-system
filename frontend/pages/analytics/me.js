@@ -7,6 +7,7 @@ import {
   getMyAnalytics,
   getMyAnalyticsAttention,
   getMyAnalyticsTrends,
+  getMyCourseBalance,
 } from "../../src/api";
 import { clearSession, getToken, redirectToLogin } from "../../src/auth";
 
@@ -24,17 +25,20 @@ export default function MyLearningIntelligencePage() {
   const [data, setData] = useState(null);
   const [trends, setTrends] = useState(null);
   const [attention, setAttention] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [error, setError] = useState("");
 
   const load = async (cid) => {
-    const [main, tr, att] = await Promise.all([
+    const [main, tr, att, bal] = await Promise.all([
       getMyAnalytics(cid),
       getMyAnalyticsTrends(cid),
       getMyAnalyticsAttention(cid),
+      getMyCourseBalance(cid),
     ]);
     setData(main.data);
     setTrends(tr.data);
     setAttention(att.data);
+    setBalance(bal.data);
   };
 
   useEffect(() => {
@@ -103,6 +107,23 @@ export default function MyLearningIntelligencePage() {
               <li>Active gaps: {summary.active_gaps ?? 0}</li>
               <li>Resolved gaps: {summary.resolved_gaps ?? 0}</li>
             </ul>
+          </section>
+
+          <section className="mt-6">
+            <h2 className="text-lg font-semibold text-[var(--sys-blue)]">Course balance</h2>
+            <p className="mt-1 text-sm">{balance?.reason}</p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {(balance?.subjects || []).map((s) => (
+                <li key={s.subject_id}>
+                  {s.subject_name}: {s.coverage_percent}% ({s.mastered_topics}/{s.total_topics} mastered)
+                </li>
+              ))}
+            </ul>
+            {balance?.balance_status && balance.balance_status !== "BALANCED" ? (
+              <p className="mt-2 text-sm">
+                {balance.recommended_action} You may still study any subject.
+              </p>
+            ) : null}
           </section>
 
           <TopicList title="Mastered Topics" items={data.mastered_topics} />

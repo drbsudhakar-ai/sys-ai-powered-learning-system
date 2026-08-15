@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   chooseLearningAction,
+  chooseSubjectTopic,
   completeLearningAction,
   dismissLearningAction,
   getApiErrorMessage,
@@ -35,10 +36,14 @@ export default function StudentLearningJourneyPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [prereqChoice, setPrereqChoice] = useState(null);
 
-  const load = async (cid) => {
-    const res = await getMyLearningJourney(cid);
+  const load = async (cid, sid) => {
+    const res = await getMyLearningJourney(cid, sid || undefined);
     setData(res.data);
+    const selected = res.data?.subject_guidance?.selected_subject?.id;
+    if (selected) setSubjectId(String(selected));
   };
 
   useEffect(() => {
@@ -108,6 +113,7 @@ export default function StudentLearningJourneyPage() {
           value={courseId}
           onChange={async (e) => {
             setCourseId(e.target.value);
+            setSubjectId("");
             if (e.target.value) await load(Number(e.target.value));
           }}
         >
@@ -118,6 +124,186 @@ export default function StudentLearningJourneyPage() {
           ))}
         </select>
       </label>
+
+      {(data?.subjects || []).length ? (
+        <section className="sys-card mt-6 !max-w-none" aria-labelledby="subjects-heading">
+          <h2 id="subjects-heading" className="text-lg font-bold text-[var(--sys-blue)]">
+            Choose a subject
+          </h2>
+          <p className="mt-1 text-sm text-[var(--sys-gray)]">
+            You may start any enrolled subject at any time. SYS does not require a subject sequence.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Enrolled subjects">
+            {(data.subjects || []).map((s) => {
+              const selected = String(s.id) === String(subjectId);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={selected ? "btn-primary" : "rounded-xl border px-4 py-2 text-sm"}
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      setSubjectId(String(s.id));
+                      await load(Number(courseId), s.id);
+                    })
+                  }
+                >
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {data?.subject_guidance ? (
+        <section className="sys-card mt-6 !max-w-none" aria-labelledby="topic-rec-heading">
+          <h2 id="topic-rec-heading" className="text-lg font-bold text-[var(--sys-blue)]">
+            {data.subject_guidance.selected_subject?.name}: recommended next topic
+          </h2>
+          {data.subject_guidance.recommended_topic ? (
+            <>
+              <p className="mt-2 text-base font-semibold">
+                ★ {data.subject_guidance.recommended_topic.topic_name}
+              </p>
+              <p className="mt-1 text-sm">{data.subject_guidance.reason}</p>
+              <Link
+                href={data.subject_guidance.href_start_learning || "/learning-sessions"}
+                className="btn-primary mt-4 inline-flex no-underline"
+              >
+                Start Learning
+              </Link>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-[var(--sys-gray)]">No topics in this subject yet.</p>
+          )}
+          {data.subject_guidance.prerequisite_warning?.message ? (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm">
+              <p className="font-semibold">Prerequisite guidance</p>
+              <p className="mt-1">{data.subject_guidance.prerequisite_warning.message}</p>
+              {data.subject_guidance.prerequisite_warning.blocking ? (
+                <p className="mt-1">This topic is blocked by an existing academic rule.</p>
+              ) : (
+                <p className="mt-1 text-[var(--sys-gray)]">Advisory only — you may continue.</p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(data.subject_guidance.prerequisite_warning.options || []).map((opt) => (
+                  <button
+                    key={opt.action}
+                    type="button"
+                    className="rounded-xl border bg-white px-3 py-1"
+                    disabled={busy}
+                    onClick={async () => {
+                      const def = data.subject_guidance.prerequisite_warning.deficient?.[0];
+                      if (opt.action === "LEARN_PREREQUISITE" && def) {
+                        await run(() =>
+                          chooseSubjectTopic(Number(courseId), Number(subjectId), def.topic_id)
+                        );
+                        setPrereqChoice(def);
+                      } else if (opt.href) {
+                        window.location.href = opt.href;
+                      } else {
+                        setPrereqChoice({ continued: true });
+                      }
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {prereqChoice?.topic_name ? (
+                <p className="mt-2">Teaching target set to {prereqChoice.topic_name}.</p>
+              ) : null}
+              {prereqChoice?.continued ? (
+                <p className="mt-2">You can continue with the selected topic.</p>
+              ) : null}
+            </div>
+          ) : null}
+          {(data.subject_guidance.topics || []).length ? (
+            <div className="mt-4">
+              <p className="text-sm font-semibold">Other topics in this subject</p>
+              <p className="text-xs text-[var(--sys-gray)]">
+                You may choose a different topic. SYS will not switch you to another subject.
+              </p>
+              <ul className="mt-2 space-y-2">
+                {data.subject_guidance.topics
+                  .filter(
+                    (t) => t.topic_id !== data.subject_guidance.recommended_topic?.topic_id
+                  )
+                  .map((t) => (
+                    <li key={t.topic_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span>
+                        {t.mastered ? "✓ " : ""}
+                        {t.topic_name}
+                        <span className="ml-2 text-[var(--sys-gray)]">
+                          {(t.mastery_status || "").replaceAll("_", " ")}
+                        </span>
+                      </span>
+                      {!t.mastered ? (
+                        <button
+                          type="button"
+                          className="rounded-xl border px-3 py-1"
+                          disabled={busy}
+                          onClick={() =>
+                            run(
+                              () => chooseSubjectTopic(Number(courseId), Number(subjectId), t.topic_id),
+                              `Teaching target: ${t.topic_name}`
+                            )
+                          }
+                        >
+                          Study this topic
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {(() => {
+        const bal = data?.subject_guidance?.course_balance || data?.course_balance;
+        if (!bal) return null;
+        const warn = bal.status && bal.status !== "BALANCED";
+        return (
+          <section className="sys-card mt-6 !max-w-none" aria-labelledby="balance-heading">
+            <h2 id="balance-heading" className="text-lg font-bold text-[var(--sys-blue)]">
+              Course balance
+            </h2>
+            {warn ? (
+              <p className="mt-2 text-sm font-semibold text-amber-800">
+                ⚠ {bal.lagging_subject?.subject_name || "A subject"} is currently behind your other subjects.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-[var(--sys-gray)]">
+                Subject progress differences are within a normal range. You may still choose any subject.
+              </p>
+            )}
+            <p className="mt-2 text-sm">{bal.reason}</p>
+            <ul className="mt-3 space-y-2">
+              {(bal.subjects || []).map((s) => (
+                <li key={s.subject_id} className="text-sm">
+                  <span className="font-semibold">{s.subject_name}</span>
+                  <span className="ml-2">{s.coverage_percent}%</span>
+                  <span className="ml-2 text-[var(--sys-gray)]">
+                    {s.mastered_topics}/{s.total_topics} mastered
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {warn ? (
+              <p className="mt-3 text-sm">
+                {bal.recommended_action ||
+                  "Consider allocating additional study time to the lagging subject. This is not a command to stop another subject."}
+              </p>
+            ) : null}
+          </section>
+        );
+      })()}
 
       {resume ? (
         <section className="sys-card mt-6 !max-w-none" aria-labelledby="resume-heading">

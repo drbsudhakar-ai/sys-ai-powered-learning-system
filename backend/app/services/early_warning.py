@@ -379,6 +379,14 @@ def evaluate_student_warnings(
 
     severity_rank = {"URGENT_ATTENTION": 0, "ATTENTION_REQUIRED": 1, "WATCH": 2, "INFO": 3}
     unique.sort(key=lambda x: (severity_rank.get(x["severity"], 9), x.get("topic_name") or ""))
+
+    # P0-019 course-level subject imbalance (derived from P0-015/P0-012; not a new risk score)
+    from app.services import subject_progression as sp
+
+    balance = sp.evaluate_course_balance(db, student_id=student_id, course_id=course_id)
+    if balance.get("signal"):
+        unique.append(balance["signal"])
+        unique.sort(key=lambda x: (severity_rank.get(x["severity"], 9), x.get("topic_name") or ""))
     return unique
 
 
@@ -444,5 +452,10 @@ def faculty_recommendation(
         return {
             "action": "REVIEW",
             "message": "Review recommended — mastery regression detected from later evidence.",
+        }
+    if code == "SUBJECT_PROGRESS_IMBALANCE":
+        return {
+            "action": "ENCOURAGE_LAGGING_SUBJECT_TIME",
+            "message": "Advise additional study time for the lagging subject without forcing a subject switch.",
         }
     return {"action": "MONITOR", "message": "Monitor progress and offer support as needed."}
