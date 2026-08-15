@@ -222,4 +222,44 @@ export const declareReassessmentReady = (data) =>
 export const approveReassessment = (data) => API.post("/mastery/reassessment/approve", data);
 export const startReassessment = (data) => API.post("/mastery/reassessment/start", data);
 
+// P0-016 Learning Intelligence
+export const getAnalyticsPolicy = (courseId) =>
+  API.get("/analytics/policy", { params: courseId != null ? { course_id: courseId } : {} });
+export const getMyAnalytics = (courseId) =>
+  API.get("/analytics/me", { params: { course_id: courseId } });
+export const getMyAnalyticsTopics = (courseId) =>
+  API.get("/analytics/me/topics", { params: { course_id: courseId } });
+export const getMyAnalyticsTrends = (courseId, topicId) =>
+  API.get("/analytics/me/trends", {
+    params: { course_id: courseId, ...(topicId != null ? { topic_id: topicId } : {}) },
+  });
+export const getMyAnalyticsAttention = (courseId) =>
+  API.get("/analytics/me/attention", { params: { course_id: courseId } });
+export const getStudentAnalytics = (studentId, courseId) =>
+  API.get(`/analytics/students/${studentId}/courses/${courseId}`);
+export const getFacultyAnalyticsOverview = (courseId) =>
+  API.get("/analytics/faculty/overview", { params: { course_id: courseId } });
+export const getFacultyAnalyticsTopics = (courseId, subjectId) =>
+  API.get("/analytics/faculty/topics", {
+    params: { course_id: courseId, ...(subjectId != null ? { subject_id: subjectId } : {}) },
+  });
+export const getFacultyAnalyticsStudents = (courseId) =>
+  API.get("/analytics/faculty/students", { params: { course_id: courseId } });
+export const getFacultyAnalyticsAttention = (courseId, limit) =>
+  API.get("/analytics/faculty/attention", {
+    params: { course_id: courseId, ...(limit != null ? { limit } : {}) },
+  });
+export const getFacultyAnalyticsInterventions = (courseId) =>
+  API.get("/analytics/faculty/interventions", { params: { course_id: courseId } });
+export const notifyFacultyAttention = (courseId, studentId) =>
+  API.post("/analytics/faculty/attention/notify", null, {
+    params: { course_id: courseId, ...(studentId != null ? { student_id: studentId } : {}) },
+  });
+export const getAdminAnalyticsOverview = (params) => API.get("/analytics/admin/overview", { params });
+export const getAdminAnalyticsCourses = () => API.get("/analytics/admin/courses");
+export const getAdminAnalyticsSubjects = (courseId) =>
+  API.get("/analytics/admin/subjects", { params: { course_id: courseId } });
+export const getAdminAnalyticsTrends = (params) => API.get("/analytics/admin/trends", { params });
+export const getAdminAnalyticsAttention = (params) => API.get("/analytics/admin/attention", { params });
+
 export default API;
