@@ -9,8 +9,10 @@ from sqlalchemy import (
     Integer,
     String,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     UniqueConstraint,
     Text,
     Float,
@@ -28,6 +30,24 @@ from app.database import Base
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "lower(role) <> 'student' OR (roll_number IS NOT NULL AND trim(roll_number) <> '')",
+            name="ck_users_student_roll_required",
+        ),
+        CheckConstraint(
+            "lower(role) <> 'faculty' OR (employee_code IS NOT NULL AND trim(employee_code) <> '')",
+            name="ck_users_faculty_employee_required",
+        ),
+        CheckConstraint(
+            "roll_number IS NULL OR roll_number = upper(trim(roll_number))",
+            name="ck_users_roll_number_normalized",
+        ),
+        CheckConstraint(
+            "employee_code IS NULL OR employee_code = upper(trim(employee_code))",
+            name="ck_users_employee_code_normalized",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
@@ -40,8 +60,8 @@ class User(Base):
     mobile_is_personal = Column(Boolean, nullable=False, server_default="true", default=True)
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False)  # "student", "faculty", "admin"
-    roll_number = Column(String(50), unique=True, index=True, nullable=True)
-    employee_code = Column(String(50), unique=True, index=True, nullable=True)
+    roll_number = Column(String(50), index=True, nullable=True)
+    employee_code = Column(String(50), index=True, nullable=True)
     photo_url = Column(String(255), nullable=True)
     is_active = Column(Boolean, nullable=False, server_default="true", default=True)
     account_status = Column(
@@ -61,6 +81,22 @@ class User(Base):
     subject_expert_assignments = relationship("SubjectExpertAssignment", back_populates="faculty")
     courses = relationship("Course", back_populates="created_by_user")
     assessments = relationship("Assessment", back_populates="created_by_user")
+
+
+Index(
+    "uq_users_roll_number_btrim_upper",
+    func.upper(func.trim(User.roll_number)),
+    unique=True,
+    postgresql_where=User.roll_number.is_not(None),
+    sqlite_where=User.roll_number.is_not(None),
+)
+Index(
+    "uq_users_employee_code_btrim_upper",
+    func.upper(func.trim(User.employee_code)),
+    unique=True,
+    postgresql_where=User.employee_code.is_not(None),
+    sqlite_where=User.employee_code.is_not(None),
+)
 
 
 class AuthChallenge(Base):

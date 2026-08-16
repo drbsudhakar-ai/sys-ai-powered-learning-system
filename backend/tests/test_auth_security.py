@@ -63,8 +63,12 @@ class AuthenticationSecurityTests(unittest.TestCase):
             email=self._email(role),
             hashed_password=utils.hash_password(password),
             role=role,
-            roll_number=f"ROLL-{uuid.uuid4().hex[:8]}" if role == "student" else None,
-            employee_code=f"EMP-{uuid.uuid4().hex[:8]}" if role in {"faculty", "admin"} else None,
+            roll_number=f"ROLL-{uuid.uuid4().hex[:8]}".upper() if role == "student" else None,
+            employee_code=(
+                f"EMP-{uuid.uuid4().hex[:8]}".upper()
+                if role in {"faculty", "admin"}
+                else None
+            ),
             is_active=active,
         )
         with self.session_factory() as db:

@@ -68,7 +68,7 @@ class ProtectedUserFactory:
                 email_verified=True,
                 hashed_password=utils.hash_password(_TEST_PASSWORD),
                 role="admin",
-                employee_code=f"{self.prefix}-{uuid.uuid4().hex[:10]}",
+                employee_code=f"{self.prefix}-{uuid.uuid4().hex[:10]}".upper(),
                 is_active=True,
                 account_status="ACTIVE",
                 session_version=1,

@@ -50,6 +50,42 @@ def _get_role_user(db: Session, user_id: int, role: str) -> models.User:
     return user
 
 
+def _normalized_identifier(
+    db: Session,
+    *,
+    column,
+    value: str | None,
+    required_detail: str,
+    duplicate_detail: str,
+    exclude_user_id: int | None = None,
+) -> str:
+    if not (value or "").strip():
+        raise HTTPException(status_code=422, detail=required_detail)
+    try:
+        normalized = auth_service.normalize_institutional_id(value or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    query = db.query(models.User).filter(
+        auth_service.normalized_identifier_expression(column) == normalized
+    )
+    if exclude_user_id is not None:
+        query = query.filter(models.User.id != exclude_user_id)
+    if query.first():
+        raise HTTPException(status_code=409, detail=duplicate_detail)
+    return normalized
+
+
+def _commit_identifier_user(db: Session, user: models.User, duplicate_detail: str) -> models.User:
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=duplicate_detail)
+    return user
+
+
 @router.post("/users/provision", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
 def provision_user(
     payload: schemas.UserCreate,
@@ -68,6 +104,100 @@ def provision_user(
         employee_code=payload.employee_code,
         mobile_number=payload.mobile_number,
     )
+
+
+@router.post(
+    "/users/master-upload",
+    response_model=List[schemas.UserOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def master_upload_users(
+    payload: schemas.AdminMasterBatchCreate,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(_admin),
+):
+    """Validate and create a student/faculty master batch atomically."""
+
+    seen_roll_numbers: set[str] = set()
+    seen_employee_codes: set[str] = set()
+    users: list[models.User] = []
+
+    for record in payload.records:
+        if record.role == "student":
+            if record.employee_code is not None:
+                raise HTTPException(status_code=422, detail="employee_code is not valid for students")
+            roll_number = _normalized_identifier(
+                db,
+                column=models.User.roll_number,
+                value=record.roll_number,
+                required_detail="roll_number is required for students",
+                duplicate_detail="Roll number already exists",
+            )
+            if roll_number in seen_roll_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Duplicate roll number in master-upload batch",
+                )
+            seen_roll_numbers.add(roll_number)
+            employee_code = None
+        else:
+            if record.roll_number is not None:
+                raise HTTPException(status_code=422, detail="roll_number is not valid for faculty")
+            employee_code = _normalized_identifier(
+                db,
+                column=models.User.employee_code,
+                value=record.employee_code,
+                required_detail="employee_code is required for faculty",
+                duplicate_detail="Employee code already exists",
+            )
+            if employee_code in seen_employee_codes:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Duplicate employee code in master-upload batch",
+                )
+            seen_employee_codes.add(employee_code)
+            roll_number = None
+
+        try:
+            institutional_email = (
+                auth_service.normalize_email(str(record.email)) if record.email else None
+            )
+            institutional_mobile = (
+                auth_service.normalize_mobile(record.mobile_number)
+                if record.mobile_number
+                else None
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        users.append(
+            models.User(
+                name=record.name.strip(),
+                email=None,
+                institutional_email=institutional_email,
+                institutional_mobile=institutional_mobile,
+                hashed_password=None,
+                role=record.role,
+                roll_number=roll_number,
+                employee_code=employee_code,
+                photo_url=record.photo_url,
+                is_active=True,
+                account_status=auth_service.ACCOUNT_PENDING,
+                email_verified=False,
+                mobile_verified=False,
+                mobile_is_personal=record.mobile_is_personal,
+            )
+        )
+
+    try:
+        db.add_all(users)
+        db.commit()
+        for user in users:
+            db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Duplicate institutional identifier")
+    return users
 
 
 @router.post("/users/{user_id}/disable", response_model=schemas.UserOut)
@@ -138,11 +268,15 @@ def create_student(
     db: Session = Depends(database.get_db),
     _: models.User = Depends(_admin),
 ):
-    if not payload.roll_number:
-        raise HTTPException(status_code=422, detail="roll_number is required for students")
-    roll_number = auth_service.normalize_institutional_id(payload.roll_number)
-    if db.query(models.User).filter(models.User.roll_number == roll_number).first():
-        raise HTTPException(status_code=409, detail="Roll number already exists")
+    if payload.employee_code is not None:
+        raise HTTPException(status_code=422, detail="employee_code is not valid for students")
+    roll_number = _normalized_identifier(
+        db,
+        column=models.User.roll_number,
+        value=payload.roll_number,
+        required_detail="roll_number is required for students",
+        duplicate_detail="Roll number already exists",
+    )
     try:
         institutional_email = auth_service.normalize_email(str(payload.email)) if payload.email else None
         institutional_mobile = auth_service.normalize_mobile(payload.mobile_number) if payload.mobile_number else None
@@ -163,10 +297,7 @@ def create_student(
         mobile_verified=False,
         mobile_is_personal=payload.mobile_is_personal,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    return _commit_identifier_user(db, user, "Roll number already exists")
 
 
 @router.put("/students/{student_id}", response_model=schemas.UserOut)
@@ -182,6 +313,20 @@ def update_student(
     password = data.pop("password", None)
     mobile = data.pop("mobile_number", None)
     email = data.pop("email", None)
+    roll_number = data.pop("roll_number", None) if "roll_number" in data else None
+    roll_number_supplied = "roll_number" in payload.model_fields_set
+    employee_code = data.pop("employee_code", None) if "employee_code" in data else None
+    if employee_code is not None:
+        raise HTTPException(status_code=422, detail="employee_code is not valid for students")
+    if roll_number_supplied:
+        user.roll_number = _normalized_identifier(
+            db,
+            column=models.User.roll_number,
+            value=roll_number,
+            required_detail="roll_number is required for students",
+            duplicate_detail="Roll number already exists",
+            exclude_user_id=user.id,
+        )
     if email is not None:
         normalized_email = auth_service.normalize_email(str(email))
         if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_email != user.email:
@@ -206,9 +351,7 @@ def update_student(
             raise HTTPException(status_code=422, detail=str(exc))
         user.hashed_password = utils.hash_password(secret)
         user.session_version = (user.session_version or 1) + 1
-    db.commit()
-    db.refresh(user)
-    return user
+    return _commit_identifier_user(db, user, "Roll number already exists")
 
 
 @router.post("/students/{student_id}/deactivate", response_model=schemas.UserOut)
@@ -284,11 +427,15 @@ def create_faculty(
     db: Session = Depends(database.get_db),
     _: models.User = Depends(_admin),
 ):
-    if not payload.employee_code:
-        raise HTTPException(status_code=422, detail="employee_code is required for faculty")
-    employee_code = auth_service.normalize_institutional_id(payload.employee_code)
-    if db.query(models.User).filter(models.User.employee_code == employee_code).first():
-        raise HTTPException(status_code=409, detail="Employee code already exists")
+    if payload.roll_number is not None:
+        raise HTTPException(status_code=422, detail="roll_number is not valid for faculty")
+    employee_code = _normalized_identifier(
+        db,
+        column=models.User.employee_code,
+        value=payload.employee_code,
+        required_detail="employee_code is required for faculty",
+        duplicate_detail="Employee code already exists",
+    )
     try:
         institutional_email = auth_service.normalize_email(str(payload.email)) if payload.email else None
         institutional_mobile = auth_service.normalize_mobile(payload.mobile_number) if payload.mobile_number else None
@@ -309,10 +456,7 @@ def create_faculty(
         mobile_verified=False,
         mobile_is_personal=payload.mobile_is_personal,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    return _commit_identifier_user(db, user, "Employee code already exists")
 
 
 @router.put("/faculty/{faculty_id}", response_model=schemas.UserOut)
@@ -328,6 +472,20 @@ def update_faculty(
     password = data.pop("password", None)
     mobile = data.pop("mobile_number", None)
     email = data.pop("email", None)
+    employee_code = data.pop("employee_code", None) if "employee_code" in data else None
+    employee_code_supplied = "employee_code" in payload.model_fields_set
+    roll_number = data.pop("roll_number", None) if "roll_number" in data else None
+    if roll_number is not None:
+        raise HTTPException(status_code=422, detail="roll_number is not valid for faculty")
+    if employee_code_supplied:
+        user.employee_code = _normalized_identifier(
+            db,
+            column=models.User.employee_code,
+            value=employee_code,
+            required_detail="employee_code is required for faculty",
+            duplicate_detail="Employee code already exists",
+            exclude_user_id=user.id,
+        )
     if email is not None:
         normalized_email = auth_service.normalize_email(str(email))
         if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_email != user.email:
@@ -352,9 +510,7 @@ def update_faculty(
             raise HTTPException(status_code=422, detail=str(exc))
         user.hashed_password = utils.hash_password(secret)
         user.session_version = (user.session_version or 1) + 1
-    db.commit()
-    db.refresh(user)
-    return user
+    return _commit_identifier_user(db, user, "Employee code already exists")
 
 
 @router.post("/faculty/{faculty_id}/deactivate", response_model=schemas.UserOut)

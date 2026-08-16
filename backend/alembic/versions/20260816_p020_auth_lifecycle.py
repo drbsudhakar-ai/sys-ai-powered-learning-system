@@ -77,33 +77,108 @@ def upgrade():
         "CREATE UNIQUE INDEX uq_users_employee_code_normalized ON users (upper(employee_code)) WHERE employee_code IS NOT NULL"
     )
 
-    op.create_table(
-        "auth_challenges",
-        sa.Column("id", sa.String(64), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("purpose", sa.String(50), nullable=False),
-        sa.Column("channel", sa.String(20), nullable=False),
-        sa.Column("subject_hash", sa.String(64), nullable=False),
-        sa.Column("contact_hash", sa.String(64), nullable=True),
-        sa.Column("otp_hash", sa.String(64), nullable=True),
-        sa.Column("status", sa.String(24), nullable=False, server_default="PENDING"),
-        sa.Column("failed_attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("send_count", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("resend_available_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("authorization_hash", sa.String(64), nullable=True),
-        sa.Column("authorization_expires_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("authorization_used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("request_ip_hash", sa.String(64), nullable=False),
-        sa.Column("delivery_status", sa.String(24), nullable=False, server_default="PENDING"),
-        sa.Column("failure_reason", sa.String(255), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True, onupdate=sa.func.now()),
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if inspector.has_table("auth_challenges"):
+        # Older application startup code called metadata.create_all(), which
+        # could create this application-owned table ahead of its Alembic
+        # revision. Adopt it only when its security-relevant shape matches.
+        expected_columns = {
+            "id",
+            "user_id",
+            "purpose",
+            "channel",
+            "subject_hash",
+            "contact_hash",
+            "otp_hash",
+            "status",
+            "failed_attempts",
+            "send_count",
+            "expires_at",
+            "resend_available_at",
+            "authorization_hash",
+            "authorization_expires_at",
+            "authorization_used_at",
+            "request_ip_hash",
+            "delivery_status",
+            "failure_reason",
+            "created_at",
+            "updated_at",
+        }
+        columns = {column["name"]: column for column in inspector.get_columns("auth_challenges")}
+        required_not_null = {
+            "id",
+            "purpose",
+            "channel",
+            "subject_hash",
+            "status",
+            "failed_attempts",
+            "send_count",
+            "expires_at",
+            "resend_available_at",
+            "request_ip_hash",
+            "delivery_status",
+            "created_at",
+        }
+        primary_key = set(inspector.get_pk_constraint("auth_challenges")["constrained_columns"])
+        foreign_keys = inspector.get_foreign_keys("auth_challenges")
+        has_user_fk = any(
+            fk["constrained_columns"] == ["user_id"]
+            and fk["referred_table"] == "users"
+            and fk["referred_columns"] == ["id"]
+            for fk in foreign_keys
+        )
+        if (
+            set(columns) != expected_columns
+            or any(columns[name]["nullable"] for name in required_not_null)
+            or primary_key != {"id"}
+            or not has_user_fk
+        ):
+            raise RuntimeError(
+                "Existing auth_challenges table does not match the P0-020 contract"
+            )
+    else:
+        op.create_table(
+            "auth_challenges",
+            sa.Column("id", sa.String(64), primary_key=True),
+            sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+            sa.Column("purpose", sa.String(50), nullable=False),
+            sa.Column("channel", sa.String(20), nullable=False),
+            sa.Column("subject_hash", sa.String(64), nullable=False),
+            sa.Column("contact_hash", sa.String(64), nullable=True),
+            sa.Column("otp_hash", sa.String(64), nullable=True),
+            sa.Column("status", sa.String(24), nullable=False, server_default="PENDING"),
+            sa.Column("failed_attempts", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("send_count", sa.Integer(), nullable=False, server_default="1"),
+            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("resend_available_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("authorization_hash", sa.String(64), nullable=True),
+            sa.Column("authorization_expires_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("authorization_used_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("request_ip_hash", sa.String(64), nullable=False),
+            sa.Column("delivery_status", sa.String(24), nullable=False, server_default="PENDING"),
+            sa.Column("failure_reason", sa.String(255), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True, onupdate=sa.func.now()),
+        )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_auth_challenges_user_id ON auth_challenges (user_id)"
     )
-    op.create_index("ix_auth_challenges_user_id", "auth_challenges", ["user_id"])
-    op.create_index("ix_auth_challenges_purpose", "auth_challenges", ["purpose"])
-    op.create_index("ix_auth_challenges_subject_hash", "auth_challenges", ["subject_hash"])
-    op.create_index("ix_auth_challenges_request_ip_hash", "auth_challenges", ["request_ip_hash"])
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_auth_challenges_purpose ON auth_challenges (purpose)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_auth_challenges_subject_hash ON auth_challenges (subject_hash)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_auth_challenges_request_ip_hash "
+        "ON auth_challenges (request_ip_hash)"
+    )
 
 
 def downgrade():

@@ -81,6 +81,12 @@ def normalize_institutional_id(value: str) -> str:
     return normalized
 
 
+def normalized_identifier_expression(column):
+    """Database expression matching the institutional-ID storage contract."""
+
+    return func.upper(func.trim(column))
+
+
 def _secret_hash(value: str) -> str:
     return hmac.new(
         settings.SECRET_KEY.encode("utf-8"),
@@ -144,8 +150,8 @@ def find_users_by_identifier(db: Session, identifier: str) -> list[models.User]:
         institutional_id = normalize_institutional_id(raw)
         conditions.extend(
             [
-                func.upper(models.User.roll_number) == institutional_id,
-                func.upper(models.User.employee_code) == institutional_id,
+                normalized_identifier_expression(models.User.roll_number) == institutional_id,
+                normalized_identifier_expression(models.User.employee_code) == institutional_id,
             ]
         )
     except ValueError:
@@ -182,25 +188,33 @@ def provision_active_user(
 ) -> models.User:
     if role not in {"student", "faculty"}:
         raise HTTPException(status_code=422, detail="Unsupported provisioned role")
-    if role == "student" and not roll_number:
-        raise HTTPException(status_code=422, detail="Institutional identifier is required")
-    if role == "faculty" and not employee_code:
-        raise HTTPException(status_code=422, detail="Institutional identifier is required")
     try:
         normalized_email = normalize_email(email)
         normalized_mobile = normalize_mobile(mobile_number) if mobile_number else None
+        normalized_roll_number = (
+            normalize_institutional_id(roll_number or "") if role == "student" else None
+        )
+        normalized_employee_code = (
+            normalize_institutional_id(employee_code or "") if role == "faculty" else None
+        )
         utils.validate_password(password)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        if role == "student" and not (roll_number or "").strip():
+            detail = "roll_number is required for students"
+        elif role == "faculty" and not (employee_code or "").strip():
+            detail = "employee_code is required for faculty"
+        else:
+            detail = str(exc)
+        raise HTTPException(status_code=422, detail=detail)
 
     duplicate = db.query(models.User).filter(
         or_(
             func.lower(models.User.email) == normalized_email,
-            func.upper(models.User.roll_number) == normalize_institutional_id(roll_number or "")
-            if roll_number
+            normalized_identifier_expression(models.User.roll_number) == normalized_roll_number
+            if normalized_roll_number
             else False,
-            func.upper(models.User.employee_code) == normalize_institutional_id(employee_code or "")
-            if employee_code
+            normalized_identifier_expression(models.User.employee_code) == normalized_employee_code
+            if normalized_employee_code
             else False,
             models.User.mobile_number == normalized_mobile if normalized_mobile else False,
         )
@@ -219,8 +233,8 @@ def provision_active_user(
         mobile_is_personal=True,
         hashed_password=utils.hash_password(password),
         role=role,
-        roll_number=normalize_institutional_id(roll_number) if roll_number else None,
-        employee_code=normalize_institutional_id(employee_code) if employee_code else None,
+        roll_number=normalized_roll_number,
+        employee_code=normalized_employee_code,
         is_active=True,
         account_status=ACCOUNT_ACTIVE,
         session_version=1,

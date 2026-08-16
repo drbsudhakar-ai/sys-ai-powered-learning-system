@@ -56,8 +56,8 @@ class AdminUserCreate(BaseModel):
     email: Optional[EmailStr] = None
     mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
     mobile_is_personal: bool = True
-    roll_number: Optional[str] = None
-    employee_code: Optional[str] = None
+    roll_number: Optional[str] = Field(None, max_length=50)
+    employee_code: Optional[str] = Field(None, max_length=50)
     photo_url: Optional[str] = None
 
 
@@ -66,11 +66,21 @@ class AdminUserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
     mobile_is_personal: Optional[bool] = None
-    roll_number: Optional[str] = None
-    employee_code: Optional[str] = None
+    roll_number: Optional[str] = Field(None, max_length=50)
+    employee_code: Optional[str] = Field(None, max_length=50)
     photo_url: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[SecretStr] = None
+
+
+class AdminMasterRecordCreate(AdminUserCreate):
+    role: Literal["student", "faculty"]
+
+
+class AdminMasterBatchCreate(BaseModel):
+    records: List[AdminMasterRecordCreate] = Field(..., min_length=1, max_length=1000)
+
+    model_config = {"extra": "forbid"}
 
 
 class ActivationStartRequest(BaseModel):
