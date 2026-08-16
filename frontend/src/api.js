@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getToken } from "./auth";
 
 const API = axios.create({
   baseURL:
@@ -6,7 +7,7 @@ const API = axios.create({
 });
 
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -65,10 +66,12 @@ export const adminActivateFaculty = (id) => API.post(`/admin/faculty/${id}/activ
 // Admin — Subjects & responsibilities
 export const adminListSubjects = () => API.get("/admin/subjects");
 export const adminCreateSubject = (data) => API.post("/admin/subjects", data);
+export const adminListCourseCoordinators = () => API.get("/admin/course-coordinators");
 export const adminAssignCourseCoordinator = (data) =>
   API.post("/admin/course-coordinators", data);
 export const adminRemoveCourseCoordinator = (id) =>
   API.delete(`/admin/course-coordinators/${id}`);
+export const adminListSubjectExperts = () => API.get("/admin/subject-experts");
 export const adminAssignSubjectExpert = (data) =>
   API.post("/admin/subject-experts", data);
 export const adminRemoveSubjectExpert = (id) =>

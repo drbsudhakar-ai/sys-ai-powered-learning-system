@@ -5,12 +5,22 @@
 
 export function getToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  return window.localStorage.getItem("token");
 }
 
 export function clearSession() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("token");
+  window.localStorage.removeItem("token");
+}
+
+export function setToken(token) {
+  if (typeof window === "undefined") return false;
+  if (typeof token !== "string" || !token.trim()) {
+    clearSession();
+    return false;
+  }
+  window.localStorage.setItem("token", token.trim());
+  return true;
 }
 
 export function isStaffRole(role) {
@@ -22,7 +32,20 @@ export function isAdminRole(role) {
   return (role || "").toLowerCase() === "admin";
 }
 
-export function redirectToLogin() {
+export function roleLandingPath(role) {
+  switch ((role || "").toLowerCase()) {
+    case "admin":
+      return "/admin-dashboard";
+    case "faculty":
+    case "student":
+      return "/dashboard";
+    default:
+      return null;
+  }
+}
+
+export function redirectToLogin(reason) {
   if (typeof window === "undefined") return;
-  window.location.href = "/login";
+  const suffix = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+  window.location.href = `/login${suffix}`;
 }
