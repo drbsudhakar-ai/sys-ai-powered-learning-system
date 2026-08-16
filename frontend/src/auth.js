@@ -23,17 +23,39 @@ export function setToken(token) {
   return true;
 }
 
+export const REGISTRATION_ROLES = Object.freeze([
+  Object.freeze({ value: "student", label: "Student" }),
+  Object.freeze({ value: "faculty", label: "Faculty" }),
+]);
+
 export function isStaffRole(role) {
   const r = (role || "").toLowerCase();
-  return r === "admin" || r === "faculty";
+  return r === "super_admin" || r === "admin" || r === "faculty";
 }
 
 export function isAdminRole(role) {
-  return (role || "").toLowerCase() === "admin";
+  const normalized = (role || "").toLowerCase();
+  return normalized === "super_admin" || normalized === "admin";
+}
+
+export function roleDisplayLabel(role) {
+  switch ((role || "").toLowerCase()) {
+    case "super_admin":
+      return "Super Admin";
+    case "admin":
+      return "Administrator";
+    case "faculty":
+      return "Faculty";
+    case "student":
+      return "Student";
+    default:
+      return "SYS User";
+  }
 }
 
 export function roleLandingPath(role) {
   switch ((role || "").toLowerCase()) {
+    case "super_admin":
     case "admin":
       return "/admin-dashboard";
     case "faculty":

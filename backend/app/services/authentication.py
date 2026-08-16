@@ -13,7 +13,7 @@ from sqlalchemy import and_, func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models, utils
+from app import models, roles, utils
 from app.config import settings
 from app.services.otp_delivery import OtpDeliveryProvider
 
@@ -186,7 +186,8 @@ def provision_active_user(
     employee_code: str | None = None,
     mobile_number: str | None = None,
 ) -> models.User:
-    if role not in {"student", "faculty"}:
+    role = roles.normalize_role(role)
+    if role not in roles.PROVISIONABLE_ROLES:
         raise HTTPException(status_code=422, detail="Unsupported provisioned role")
     try:
         normalized_email = normalize_email(email)
@@ -424,19 +425,24 @@ def start_activation(
     request_ip: str | None,
     provider: OtpDeliveryProvider,
 ) -> models.AuthChallenge:
+    role = roles.normalize_role(role)
     try:
         normalized_id = normalize_institutional_id(institutional_id)
     except ValueError:
         normalized_id = "INVALID"
-    identifier_field = models.User.roll_number if role == "student" else models.User.employee_code
-    matches = (
-        db.query(models.User)
-        .filter(
-            models.User.role == role,
-            func.upper(identifier_field) == normalized_id,
+    matches = []
+    if role in roles.PROVISIONABLE_ROLES:
+        identifier_field = (
+            models.User.roll_number if role == roles.STUDENT else models.User.employee_code
         )
-        .all()
-    )
+        matches = (
+            db.query(models.User)
+            .filter(
+                models.User.role == role,
+                normalized_identifier_expression(identifier_field) == normalized_id,
+            )
+            .all()
+        )
     user = matches[0] if len(matches) == 1 else None
     if not (
         user

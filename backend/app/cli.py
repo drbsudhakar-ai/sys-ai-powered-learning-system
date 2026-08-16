@@ -7,9 +7,11 @@ import getpass
 import uuid
 from collections.abc import Callable, Sequence
 
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import database, models, utils
+from app import database, models, roles, utils
 from app.services import authentication as auth_service
 
 
@@ -24,14 +26,31 @@ def create_super_admin(
     mobile: str,
     password: str,
 ) -> models.User:
-    if db.query(models.User).filter(models.User.role == "admin").first():
-        raise BootstrapRefused("An administrator already exists")
+    if db.query(models.User).filter(
+        func.lower(func.trim(models.User.role)) == roles.SUPER_ADMIN
+    ).first():
+        raise BootstrapRefused("A Super Admin already exists")
     try:
         normalized_email = auth_service.normalize_email(email)
         normalized_mobile = auth_service.normalize_mobile(mobile)
         utils.validate_password(password)
     except ValueError as exc:
         raise BootstrapRefused(str(exc)) from exc
+
+    duplicate_identifier = (
+        db.query(models.User)
+        .filter(
+            or_(
+                func.lower(func.trim(models.User.email)) == normalized_email,
+                func.lower(func.trim(models.User.institutional_email)) == normalized_email,
+                func.trim(models.User.mobile_number) == normalized_mobile,
+                func.trim(models.User.institutional_mobile) == normalized_mobile,
+            )
+        )
+        .first()
+    )
+    if duplicate_identifier:
+        raise BootstrapRefused("Email or mobile identifier already exists")
 
     admin = models.User(
         name="SYS Administrator",
@@ -43,16 +62,20 @@ def create_super_admin(
         mobile_verified=True,
         mobile_is_personal=True,
         hashed_password=utils.hash_password(password),
-        role="admin",
+        role=roles.SUPER_ADMIN,
         employee_code=f"SYS-ADMIN-{uuid.uuid4().hex[:10].upper()}",
         is_active=True,
         account_status=auth_service.ACCOUNT_ACTIVE,
         session_version=1,
         password_changed_at=auth_service.utcnow(),
     )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
+    try:
+        db.add(admin)
+        db.commit()
+        db.refresh(admin)
+    except IntegrityError as exc:
+        db.rollback()
+        raise BootstrapRefused("A Super Admin or account identifier already exists") from exc
     return admin
 
 

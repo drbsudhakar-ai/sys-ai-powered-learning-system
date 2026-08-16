@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app import database, models, schemas, utils
+from app import database, models, roles, schemas, utils
 from app.services import authentication as auth_service
 from app.services.otp_delivery import OtpDeliveryProvider, get_otp_provider
 
@@ -60,7 +60,7 @@ def require_roles(*allowed_roles: str):
     allowed = {role.lower() for role in allowed_roles}
 
     def _checker(current_user: models.User = Depends(get_current_user)) -> models.User:
-        if (current_user.role or "").lower() not in allowed:
+        if not roles.grants_any_role(current_user.role, allowed):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
@@ -68,6 +68,19 @@ def require_roles(*allowed_roles: str):
         return current_user
 
     return _checker
+
+
+def require_super_admin(
+    current_user: models.User = Depends(get_current_user),
+) -> models.User:
+    """Require the explicit Super Admin role without elevating ordinary Admins."""
+
+    if not roles.is_super_admin_role(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super Admin permissions required",
+        )
+    return current_user
 
 
 @router.post("/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)

@@ -400,7 +400,7 @@ def create_session(
         models.LearningSessionParticipant(
             session_id=session.id,
             user_id=fac_id,
-            role="FACILITATOR" if (actor.role or "").lower() != "admin" else "TEACHER",
+            role="TEACHER" if is_admin(actor) else "FACILITATOR",
             status="JOINED",
             joined_at=_utcnow(),
         )

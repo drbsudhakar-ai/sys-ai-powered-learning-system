@@ -5,6 +5,7 @@ import { ArrowLeftIcon, ArrowRightIcon, EyeIcon, EyeSlashIcon } from "@heroicons
 import AuthShell from "../components/auth/AuthShell";
 import OtpInput from "../components/auth/OtpInput";
 import styles from "../components/auth/Auth.module.css";
+import { REGISTRATION_ROLES } from "../src/auth";
 import {
   completeActivation,
   startActivation,
@@ -260,10 +261,10 @@ export default function RegisterPage() {
             <fieldset className={styles.choiceFieldset}>
               <legend>Select your SYS role</legend>
               <div className={styles.roleChoice}>
-                {[["student", "Student"], ["faculty", "Faculty"]].map(([value, label]) => (
-                  <label key={value}>
-                    <input type="radio" name="role" value={value} checked={role === value} onChange={() => setRole(value)} />
-                    <span>{label}</span>
+                {REGISTRATION_ROLES.map((option) => (
+                  <label key={option.value}>
+                    <input type="radio" name="role" value={option.value} checked={role === option.value} onChange={() => setRole(option.value)} />
+                    <span>{option.label}</span>
                   </label>
                 ))}
               </div>

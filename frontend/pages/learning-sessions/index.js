@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiErrorMessage, getMe, listLearningSessions } from "../../src/api";
-import { clearSession, getToken, redirectToLogin } from "../../src/auth";
+import { clearSession, getToken, isStaffRole, redirectToLogin } from "../../src/auth";
 
 export default function LearningSessionsIndexPage() {
   const [sessions, setSessions] = useState([]);
@@ -53,7 +53,7 @@ export default function LearningSessionsIndexPage() {
         ))}
         {!sessions.length && !error ? (
           <li className="text-sm text-[var(--sys-gray)]">
-            No sessions yet{role === "faculty" || role === "admin" ? " — create one via the API or faculty tools." : "."}
+            No sessions yet{isStaffRole(role) ? " — create one via the API or faculty tools." : "."}
           </li>
         ) : null}
       </ul>

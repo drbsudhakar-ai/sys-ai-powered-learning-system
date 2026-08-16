@@ -11,7 +11,7 @@ import {
   getMe,
   notifyFacultyAttention,
 } from "../../src/api";
-import { clearSession, getToken, redirectToLogin } from "../../src/auth";
+import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../src/auth";
 
 export default function FacultyLearningIntelligencePage() {
   const [me, setMe] = useState(null);
@@ -51,7 +51,7 @@ export default function FacultyLearningIntelligencePage() {
           setError("Faculty/admin access required. Students: /analytics/me");
           return;
         }
-        if (role === "admin") {
+        if (isAdminRole(role)) {
           // Admin may use this course view or /analytics/admin
         }
         const crs = await getCourses();
@@ -86,7 +86,7 @@ export default function FacultyLearningIntelligencePage() {
           <p className="sys-tagline !text-left !text-base">Faculty</p>
           <h1 className="text-2xl font-bold text-[var(--sys-blue)]">Learning Intelligence</h1>
         </div>
-        {(me?.role || "").toLowerCase() === "admin" ? (
+        {isAdminRole(me?.role) ? (
           <Link href="/analytics/admin" className="text-sm text-[var(--sys-blue)] underline">
             Institution view
           </Link>

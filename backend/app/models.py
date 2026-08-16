@@ -59,7 +59,7 @@ class User(Base):
     mobile_verified = Column(Boolean, nullable=False, server_default="false", default=False)
     mobile_is_personal = Column(Boolean, nullable=False, server_default="true", default=True)
     hashed_password = Column(String(255), nullable=True)
-    role = Column(String(50), nullable=False)  # "student", "faculty", "admin"
+    role = Column(String(50), nullable=False)  # super_admin, admin, faculty, student
     roll_number = Column(String(50), index=True, nullable=True)
     employee_code = Column(String(50), index=True, nullable=True)
     photo_url = Column(String(255), nullable=True)

@@ -19,7 +19,7 @@ import {
   UsersIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { clearSession } from "../../src/auth";
+import { clearSession, roleDisplayLabel } from "../../src/auth";
 import styles from "./AdminDashboard.module.css";
 
 const NAV_GROUPS = [
@@ -191,7 +191,7 @@ export default function AdminShell({ user, notificationFailures, children }) {
               <span className={styles.avatar} aria-hidden="true">{initials(user?.name)}</span>
               <span className={styles.profileCopy}>
                 <strong>{user?.name || "Administrator"}</strong>
-                <small>Administrator</small>
+                <small>{roleDisplayLabel(user?.role)}</small>
               </span>
             </div>
             <button className={styles.logoutButton} type="button" onClick={logout}>Log out</button>

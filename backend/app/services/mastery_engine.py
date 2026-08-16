@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app import models
+from app import models, roles
 from app.academic_auth import can_manage_learning_sessions, is_admin
 from app.constants import (
     DEFAULT_MASTERY_THRESHOLD,
@@ -616,7 +616,10 @@ def _creator_for_course(db: Session, course_id: int, fallback: models.User) -> m
     )
     if coord:
         return coord
-    admin = db.query(models.User).filter(models.User.role == "admin", models.User.is_active.is_(True)).first()
+    admin = db.query(models.User).filter(
+        models.User.role.in_(roles.ADMIN_PERMISSION_ROLES),
+        models.User.is_active.is_(True),
+    ).first()
     return admin or fallback
 
 

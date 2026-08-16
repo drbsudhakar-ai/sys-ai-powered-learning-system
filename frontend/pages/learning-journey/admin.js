@@ -5,7 +5,7 @@ import {
   getCourses,
   getMe,
 } from "../../src/api";
-import { clearSession, getToken, redirectToLogin } from "../../src/auth";
+import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../src/auth";
 
 export default function AdminLearningJourneyPage() {
   const [courses, setCourses] = useState([]);
@@ -23,7 +23,7 @@ export default function AdminLearningJourneyPage() {
       if (!getToken()) return redirectToLogin();
       try {
         const me = await getMe();
-        if ((me.data.role || "").toLowerCase() !== "admin") {
+        if (!isAdminRole(me.data.role)) {
           setError("Admin access required.");
           return;
         }

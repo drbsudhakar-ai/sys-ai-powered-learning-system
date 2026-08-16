@@ -3,11 +3,11 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app import models
+from app import models, roles
 
 
 def is_admin(user: models.User) -> bool:
-    return (user.role or "").lower() == "admin"
+    return roles.is_admin_role(user.role)
 
 
 def is_course_coordinator(db: Session, user: models.User, course_id: int) -> bool:

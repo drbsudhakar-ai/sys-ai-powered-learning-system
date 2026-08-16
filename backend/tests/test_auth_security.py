@@ -10,14 +10,14 @@ import uuid
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tests import isolation as _test_isolation  # noqa: E402,F401
-from fastapi import FastAPI  # noqa: E402
+from fastapi import Depends, FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import database, models, utils  # noqa: E402
-from app.routes import auth  # noqa: E402
+from app import academic_auth, database, models, roles, utils  # noqa: E402
+from app.routes import admin, auth  # noqa: E402
 
 
 class AuthenticationSecurityTests(unittest.TestCase):
@@ -37,6 +37,15 @@ class AuthenticationSecurityTests(unittest.TestCase):
 
         test_app = FastAPI()
         test_app.include_router(auth.router)
+        test_app.include_router(admin.router)
+
+        @test_app.get("/_test/admin-only")
+        def admin_only(user: models.User = Depends(auth.require_roles("admin"))):
+            return {"role": user.role}
+
+        @test_app.get("/_test/super-admin-only")
+        def super_admin_only(user: models.User = Depends(auth.require_super_admin)):
+            return {"role": user.role}
 
         def override_db():
             db = cls.session_factory()
@@ -123,20 +132,82 @@ class AuthenticationSecurityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_admin_cannot_provision_another_admin(self):
+    def test_administrator_roles_cannot_be_provisioned(self):
         admin, password = self._create_user("admin")
         token = self._login(admin, password)
-        email = self._email("forbidden-admin")
-        payload = self._registration_payload("faculty", email)
-        payload["role"] = "admin"
-        response = self.client.post(
-            "/auth/register",
-            headers=self._auth(token),
-            json=payload,
+        for forbidden_role in (roles.ADMIN, roles.SUPER_ADMIN):
+            with self.subTest(role=forbidden_role):
+                email = self._email(f"forbidden-{forbidden_role}")
+                payload = self._registration_payload("faculty", email)
+                payload["role"] = forbidden_role
+                for path in ("/auth/register", "/admin/users/provision"):
+                    response = self.client.post(
+                        path,
+                        headers=self._auth(token),
+                        json=payload,
+                    )
+                    self.assertEqual(response.status_code, 422, response.text)
+                with self.session_factory() as db:
+                    self.assertIsNone(
+                        db.query(models.User).filter(models.User.email == email).first()
+                    )
+
+    def test_activation_rejects_administrator_roles(self):
+        for forbidden_role in (roles.ADMIN, roles.SUPER_ADMIN):
+            response = self.client.post(
+                "/auth/activation/start",
+                json={
+                    "role": forbidden_role,
+                    "institutional_id": "SYS-ADMIN",
+                    "channel": "email",
+                },
+            )
+            self.assertEqual(response.status_code, 422, response.text)
+
+    def test_super_admin_inherits_admin_permissions_and_me_role(self):
+        super_admin, password = self._create_user(roles.SUPER_ADMIN)
+        token = self._login(super_admin, password)
+        self.assertTrue(academic_auth.is_admin(super_admin))
+
+        for path in ("/_test/admin-only", "/_test/super-admin-only", "/admin/students"):
+            response = self.client.get(path, headers=self._auth(token))
+            self.assertEqual(response.status_code, 200, response.text)
+
+        me = self.client.get("/auth/me", headers=self._auth(token))
+        self.assertEqual(me.status_code, 200, me.text)
+        self.assertEqual(me.json()["role"], roles.SUPER_ADMIN)
+
+    def test_ordinary_admin_cannot_use_super_admin_dependency(self):
+        admin_user, password = self._create_user(roles.ADMIN)
+        token = self._login(admin_user, password)
+        self.assertEqual(
+            self.client.get("/_test/admin-only", headers=self._auth(token)).status_code,
+            200,
         )
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            self.client.get("/_test/super-admin-only", headers=self._auth(token)).status_code,
+            403,
+        )
+
+    def test_faculty_and_student_cannot_use_admin_dependencies(self):
+        for role in (roles.FACULTY, roles.STUDENT):
+            user, password = self._create_user(role)
+            token = self._login(user, password)
+            for path in ("/_test/admin-only", "/_test/super-admin-only", "/admin/students"):
+                response = self.client.get(path, headers=self._auth(token))
+                self.assertEqual(response.status_code, 403, (role, path, response.text))
+
+    def test_inactive_super_admin_is_rejected(self):
+        super_admin, password = self._create_user(roles.SUPER_ADMIN)
+        token = self._login(super_admin, password)
         with self.session_factory() as db:
-            self.assertIsNone(db.query(models.User).filter(models.User.email == email).first())
+            stored = db.query(models.User).filter(models.User.id == super_admin.id).one()
+            stored.is_active = False
+            db.commit()
+
+        for path in ("/auth/me", "/_test/admin-only", "/_test/super-admin-only"):
+            response = self.client.get(path, headers=self._auth(token))
+            self.assertEqual(response.status_code, 401, (path, response.text))
 
     def test_admin_can_provision_student_and_faculty(self):
         admin, password = self._create_user("admin")

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app import models
+from app import models, roles
 from app.services import notifications as notif_svc
 
 
@@ -211,7 +211,7 @@ def get_attempt_for_user(
     role = (user.role or "").lower()
     if attempt.student_id == user.id:
         return maybe_auto_submit(db, attempt) if attempt.status == "IN_PROGRESS" else attempt
-    if allow_staff and role in ("admin", "faculty"):
+    if allow_staff and (roles.is_admin_role(role) or role == roles.FACULTY):
         return attempt
     raise HTTPException(status_code=403, detail="Not allowed to access this attempt")
 

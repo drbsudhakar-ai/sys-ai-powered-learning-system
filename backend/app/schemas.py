@@ -6,19 +6,22 @@ from pydantic import BaseModel, EmailStr, Field, SecretStr
 from typing import Optional, List, Any, Dict, Literal
 from datetime import datetime
 
+UserRole = Literal["super_admin", "admin", "faculty", "student"]
+ProvisionableRole = Literal["student", "faculty"]
+
 # =========================
 # User Schemas
 # =========================
 class UserBase(BaseModel):
     name: str
     email: Optional[EmailStr] = None
-    role: str = "student"
+    role: UserRole = "student"
     roll_number: Optional[str] = None
 
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
-    role: Literal["student", "faculty"]
+    role: ProvisionableRole
     roll_number: Optional[str] = Field(None, max_length=50)
     employee_code: Optional[str] = Field(None, max_length=50)
     mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
@@ -38,7 +41,7 @@ class UserOut(BaseModel):
     email_verified: bool = False
     mobile_verified: bool = False
     mobile_is_personal: bool = True
-    role: str
+    role: UserRole
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     photo_url: Optional[str] = None
@@ -74,7 +77,7 @@ class AdminUserUpdate(BaseModel):
 
 
 class AdminMasterRecordCreate(AdminUserCreate):
-    role: Literal["student", "faculty"]
+    role: ProvisionableRole
 
 
 class AdminMasterBatchCreate(BaseModel):
@@ -84,7 +87,7 @@ class AdminMasterBatchCreate(BaseModel):
 
 
 class ActivationStartRequest(BaseModel):
-    role: Literal["student", "faculty"]
+    role: ProvisionableRole
     institutional_id: str = Field(..., min_length=1, max_length=50)
     channel: Literal["email", "mobile"]
 

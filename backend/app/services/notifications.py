@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 
 from sqlalchemy.orm import Session, joinedload
 
-from app import models
+from app import models, roles
 from app.academic_auth import can_access_course_questions, is_admin, is_course_coordinator, is_subject_expert
 from app.constants import (
     MAX_NOTIFICATION_RETRIES,
@@ -247,7 +247,10 @@ def resolve_recipient_users(
                 for u in experts:
                     _add(u)
 
-    for u in db.query(models.User).filter(models.User.role == "admin", models.User.is_active.is_(True)).all():
+    for u in db.query(models.User).filter(
+        models.User.role.in_(roles.ADMIN_PERMISSION_ROLES),
+        models.User.is_active.is_(True),
+    ).all():
         _add(u)
 
     return list(found.values())

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas, database
+from app.academic_auth import is_admin
 from app.routes.auth import get_current_user
 from app.services import learning_sessions as ls
 from app.services import ai_lecturer as lecturer
@@ -35,7 +36,7 @@ def create_learning_session(
     # Creator is always the authenticated user; facilitator defaults to actor
     # (admins may optionally assign another facilitator).
     facilitator_id = None
-    if (current_user.role or "").lower() == "admin" and payload.facilitator_id:
+    if is_admin(current_user) and payload.facilitator_id:
         facilitator_id = payload.facilitator_id
     session = ls.create_session(
         db,
