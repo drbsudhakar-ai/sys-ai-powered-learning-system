@@ -1,0 +1,27 @@
+:root {
+  --sys-navy: #082a66;
+  --sys-gold: #f6a800;
+  --sys-purple: #6e2cbf;
+  --sys-white: #ffffff;
+  --sys-ink: #111827;
+  --sys-ink-muted: #4b5563;
+  --sys-surface: #f8fafc;
+  --sys-border: #dbe3ef;
+  --sys-focus: #2563eb;
+  --sys-radius-sm: 8px;
+  --sys-radius-md: 12px;
+  --sys-radius-lg: 16px;
+  --sys-shadow-sm: 0 2px 8px rgb(8 42 102 / 10%);
+  --sys-shadow-md: 0 12px 32px rgb(8 42 102 / 14%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

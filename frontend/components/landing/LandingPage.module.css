@@ -1,0 +1,1205 @@
+.page {
+  --navy: var(--sys-navy, #082a66);
+  --gold: var(--sys-gold, #f6a800);
+  --purple: var(--sys-purple, #6e2cbf);
+  --ink: var(--sys-ink, #111827);
+  --muted: var(--sys-ink-muted, #4b5563);
+  --surface: var(--sys-surface, #f8fafc);
+  --border: var(--sys-border, #dbe3ef);
+  --focus: var(--sys-focus, #2563eb);
+  min-height: 100vh;
+  overflow-x: clip;
+  background: #fff;
+  color: var(--ink);
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.page a,
+.page button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page a:focus-visible,
+.page button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.page section[id] {
+  scroll-margin-top: 90px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(5 29 72 / 98%);
+  box-shadow: 0 8px 24px rgb(3 21 54 / 15%);
+  backdrop-filter: blur(14px);
+}
+
+.headerInner {
+  width: min(1200px, calc(100% - 48px));
+  min-height: 82px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.brand {
+  position: relative;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.brandDesktop {
+  display: block;
+  width: 310px;
+  height: auto;
+}
+
+.brandMobile {
+  display: none;
+  width: 52px;
+  height: auto;
+}
+
+.desktopNav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.navLink {
+  padding: 11px 13px;
+  border-radius: 9px;
+  color: #dfe8fa;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.navLink:hover {
+  background: rgb(255 255 255 / 9%);
+  color: #fff;
+}
+
+.loginButton,
+.primaryButton,
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #172033;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.loginButton {
+  min-width: 90px;
+  min-height: 44px;
+  margin-left: 8px;
+  padding: 0 20px;
+  font-size: 14px;
+}
+
+.loginButton:hover,
+.primaryButton:hover,
+.ctaButton:hover {
+  transform: translateY(-2px);
+  background: #ffb719;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 16%);
+}
+
+.menuButton,
+.mobileNav {
+  display: none;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid #e1e8f2;
+  background:
+    radial-gradient(circle at 84% 18%, rgb(110 44 191 / 12%), transparent 28%),
+    linear-gradient(135deg, #f7faff 0%, #fff 55%, #f8f6fc 100%);
+}
+
+.hero::before {
+  position: absolute;
+  top: -100px;
+  right: -130px;
+  width: 440px;
+  height: 440px;
+  border: 1px solid rgb(110 44 191 / 12%);
+  border-radius: 50%;
+  content: "";
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+  width: min(1200px, calc(100% - 48px));
+  min-height: 650px;
+  margin: 0 auto;
+  padding: 72px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(430px, 0.96fr);
+  align-items: center;
+  gap: 66px;
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.eyebrow,
+.sectionKicker {
+  margin: 0;
+  color: var(--purple);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  width: fit-content;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgb(110 44 191 / 25%);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--sys-shadow-sm, 0 2px 8px rgb(8 42 102 / 10%));
+}
+
+.eyebrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.heroCopy h1 {
+  max-width: 680px;
+  margin: 25px 0 22px;
+  color: var(--navy);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: clamp(48px, 5.2vw, 70px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+
+.heroCopy h1 span {
+  color: var(--purple);
+}
+
+.heroLead {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.heroActions {
+  margin-top: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 52px;
+  padding: 0 23px;
+  font-size: 14px;
+}
+
+.primaryButton svg,
+.ctaButton svg,
+.expandPanel a svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(8 42 102 / 35%);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.secondaryButton:hover {
+  transform: translateY(-2px);
+  border-color: var(--navy);
+  background: #f4f7fc;
+}
+
+.roleAccess {
+  margin: 25px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #52617a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.roleAccess svg {
+  width: 20px;
+  height: 20px;
+  color: var(--navy);
+}
+
+.heroIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.identityCard {
+  position: relative;
+  width: min(510px, 100%);
+  padding: 34px 28px;
+  border: 1px solid #dde5f1;
+  border-radius: 28px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 30px 70px rgb(8 42 102 / 13%);
+}
+
+.identityCard::after {
+  position: absolute;
+  right: 28px;
+  bottom: 22px;
+  left: 28px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--navy) 0 33%, var(--gold) 33% 66%, var(--purple) 66%);
+  content: "";
+}
+
+.identityCard img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sectionInner {
+  width: min(1200px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 96px 0;
+}
+
+.missionSection {
+  background: #fff;
+}
+
+.missionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: end;
+  gap: 70px;
+}
+
+.missionGrid h2,
+.sectionHeading h2,
+.sectionHeadingLight h2,
+.faqIntro h2,
+.ctaInner h2 {
+  margin: 11px 0 0;
+  color: var(--navy);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: clamp(34px, 4vw, 50px);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.missionStatement {
+  margin: 0;
+  color: #35445c;
+  font-size: 18px;
+  line-height: 1.78;
+}
+
+.pillarGrid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.pillarCard {
+  min-width: 0;
+  padding: 26px;
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.pillarCard > span {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e9eff9;
+  color: var(--navy);
+}
+
+.pillarCard:nth-child(2) > span {
+  background: #fff2cf;
+  color: #895800;
+}
+
+.pillarCard:nth-child(3) > span {
+  background: #f1e9fb;
+  color: var(--purple);
+}
+
+.pillarCard svg {
+  width: 25px;
+  height: 25px;
+}
+
+.pillarCard h3 {
+  margin: 1px 0 8px;
+  color: var(--ink);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: 16px;
+}
+
+.pillarCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.programmeSection,
+.capabilitySection,
+.faqSection {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface);
+}
+
+.sectionHeading,
+.sectionHeadingLight {
+  max-width: 780px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.sectionHeading > p:last-child,
+.sectionHeadingLight > p:last-child,
+.faqIntro > p:last-child {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.programmeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.programmeCard,
+.capabilityCard,
+.roleCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(8 42 102 / 5%);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.programmeCard.cardOpen,
+.capabilityCard.cardOpen,
+.roleCard.cardOpen {
+  border-color: rgb(8 42 102 / 45%);
+  box-shadow: var(--sys-shadow-sm, 0 2px 8px rgb(8 42 102 / 10%));
+}
+
+.programmeCard > button,
+.capabilityCard > button,
+.roleCard > button {
+  width: 100%;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.programmeCard > button:hover,
+.capabilityCard > button:hover,
+.roleCard > button:hover,
+.faqList button:hover {
+  background: #f8fafc;
+}
+
+.cardIcon,
+.capabilityIcon,
+.roleIcon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #eaf0fa;
+  color: var(--navy);
+}
+
+.programmeCard:nth-child(2) .cardIcon,
+.capabilityCard:nth-child(3n + 2) .capabilityIcon,
+.roleCard:nth-child(2) .roleIcon {
+  background: #fff2cd;
+  color: #865600;
+}
+
+.programmeCard:nth-child(3) .cardIcon,
+.capabilityCard:nth-child(3n) .capabilityIcon,
+.roleCard:nth-child(3) .roleIcon {
+  background: #f2e9fb;
+  color: var(--purple);
+}
+
+.programmeCard:nth-child(4) .cardIcon,
+.capabilityCard:nth-child(4n) .capabilityIcon {
+  background: #e9f4f3;
+  color: #086a68;
+}
+
+.cardIcon svg,
+.capabilityIcon svg,
+.roleIcon svg {
+  width: 29px;
+  height: 29px;
+  stroke-width: 1.7;
+}
+
+.cardHeading,
+.capabilityCard button > span:nth-child(2),
+.roleCard button > span:nth-child(2) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cardHeading strong,
+.capabilityCard strong,
+.roleCard strong {
+  color: var(--ink);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.cardHeading small,
+.capabilityCard small,
+.roleCard small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chevron {
+  width: 22px;
+  height: 22px;
+  color: #60708a;
+  transition: transform 160ms ease;
+}
+
+.cardOpen .chevron,
+.faqOpen .chevron {
+  transform: rotate(180deg);
+}
+
+.expandPanel {
+  padding: 0 24px 24px 96px;
+  border-top: 1px solid #edf1f6;
+}
+
+.expandPanel ul,
+.roleDetail ul,
+.stepPanel ul {
+  margin: 19px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.expandPanel li,
+.roleDetail li,
+.stepPanel li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #3f4e65;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.expandPanel li svg,
+.roleDetail li svg,
+.stepPanel li svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin-top: 1px;
+  color: var(--purple);
+  stroke-width: 2.5;
+}
+
+.expandPanel a {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.workflowSection {
+  background: var(--navy);
+  color: #fff;
+}
+
+.sectionHeadingLight h2 {
+  color: #fff;
+}
+
+.sectionHeadingLight .sectionKicker {
+  color: #ffc74c;
+}
+
+.sectionHeadingLight > p:last-child {
+  color: #c1cce0;
+}
+
+.stepperShell {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 20px;
+  background: #0c3477;
+  box-shadow: 0 24px 50px rgb(0 15 49 / 24%);
+}
+
+.stepTabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+}
+
+.stepTabs button {
+  position: relative;
+  min-width: 0;
+  min-height: 148px;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-right: 1px solid rgb(255 255 255 / 11%);
+  background: transparent;
+  color: #d4def0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.stepTabs button:last-child {
+  border-right: 0;
+}
+
+.stepTabs button:hover {
+  background: rgb(255 255 255 / 7%);
+  color: #fff;
+}
+
+.stepTabs button.stepActive {
+  background: #fff;
+  color: var(--navy);
+}
+
+.stepTabs button.stepActive::after {
+  position: absolute;
+  right: 20px;
+  bottom: 0;
+  left: 20px;
+  height: 4px;
+  border-radius: 4px 4px 0 0;
+  background: var(--gold);
+  content: "";
+}
+
+.stepNumber {
+  color: #9fb2d1;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+}
+
+.stepActive .stepNumber {
+  color: var(--purple);
+}
+
+.stepIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 12px;
+}
+
+.stepActive .stepIcon {
+  border-color: #d7e1ef;
+  background: #edf2f9;
+}
+
+.stepIcon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.stepPanel {
+  min-height: 260px;
+  padding: 40px 50px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.panelIcon {
+  width: 70px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #eaf0fa;
+  color: var(--navy);
+}
+
+.panelIcon svg {
+  width: 36px;
+  height: 36px;
+  stroke-width: 1.6;
+}
+
+.panelNumber {
+  margin: 0;
+  color: var(--purple);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stepPanel h3 {
+  margin: 8px 0 10px;
+  color: var(--navy);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: 27px;
+}
+
+.stepPanel > div > p:not(.panelNumber) {
+  max-width: 800px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.stepPanel ul {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.capabilityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.capabilityCard > button {
+  padding: 20px;
+}
+
+.capabilityIcon {
+  width: 48px;
+  height: 48px;
+}
+
+.capabilityIcon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.capabilityCard strong {
+  font-size: 15px;
+}
+
+.capabilityDetail {
+  margin: 0;
+  padding: 18px 22px 22px 86px;
+  border-top: 1px solid #edf1f6;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.rolesSection {
+  background: #fff;
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.roleCard > button {
+  padding: 26px 24px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.roleCard .chevron {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: 3px;
+}
+
+.roleDetail {
+  padding: 0 24px 24px;
+  border-top: 1px solid #edf1f6;
+}
+
+.faqInner {
+  width: min(1100px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 96px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  align-items: start;
+  gap: 70px;
+}
+
+.faqIntro h2 {
+  font-size: clamp(34px, 3.6vw, 46px);
+}
+
+.faqList {
+  display: grid;
+  gap: 10px;
+}
+
+.faqList article {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.faqList button {
+  width: 100%;
+  padding: 20px 21px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.faqList button svg {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  color: #5b6b83;
+  transition: transform 160ms ease;
+}
+
+.faqList article > p {
+  margin: 0;
+  padding: 0 21px 21px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ctaSection {
+  padding: 72px 24px;
+  background: #fff;
+}
+
+.ctaInner {
+  width: min(1200px, 100%);
+  min-height: 190px;
+  margin: 0 auto;
+  padding: 40px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 45px;
+  border-radius: 20px;
+  background: var(--navy);
+  color: #fff;
+  box-shadow: var(--sys-shadow-md, 0 12px 32px rgb(8 42 102 / 14%));
+}
+
+.ctaInner .sectionKicker {
+  color: #ffc74c;
+}
+
+.ctaInner h2 {
+  max-width: 760px;
+  color: #fff;
+  font-size: clamp(28px, 3.5vw, 42px);
+}
+
+.ctaInner > div > p:last-child {
+  margin: 13px 0 0;
+  color: #c4cfe3;
+  font-size: 14px;
+}
+
+.ctaButton {
+  min-height: 54px;
+  padding: 0 25px;
+  white-space: nowrap;
+}
+
+.footer {
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  background: #041d48;
+  color: #fff;
+}
+
+.footerInner,
+.footerBottom {
+  width: min(1200px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.footerInner {
+  padding: 55px 0 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 70px;
+}
+
+.footerBrand .brandDesktop {
+  width: 100%;
+}
+
+.footerBrand .brand {
+  width: min(295px, 100%);
+}
+
+.footerBrand > p {
+  max-width: 430px;
+  margin: 18px 0 0;
+  color: #b9c6dc;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.footerNavGroup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, auto));
+  gap: 55px;
+}
+
+.footerNavGroup nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.footerNavGroup h2 {
+  margin: 0 0 7px;
+  color: #fff;
+  font-family: "Montserrat", ui-sans-serif, sans-serif;
+  font-size: 13px;
+}
+
+.footerNavGroup a {
+  color: #b9c6dc;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.footerNavGroup a:hover {
+  color: #fff;
+}
+
+.footerBottom {
+  padding: 20px 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  border-top: 1px solid rgb(255 255 255 / 11%);
+  color: #899ab7;
+  font-size: 10px;
+}
+
+@media (max-width: 1100px) {
+  .headerInner,
+  .heroInner,
+  .sectionInner,
+  .footerInner,
+  .footerBottom {
+    width: min(100% - 36px, 1200px);
+  }
+
+  .brandDesktop { width: 265px; }
+  .desktopNav { gap: 2px; }
+  .navLink { padding-right: 9px; padding-left: 9px; font-size: 12px; }
+  .heroInner { grid-template-columns: minmax(0, 1fr) minmax(390px, 0.9fr); gap: 35px; }
+  .heroCopy h1 { font-size: clamp(45px, 5.7vw, 62px); }
+  .pillarGrid { grid-template-columns: 1fr; }
+  .pillarCard { align-items: center; }
+}
+
+@media (max-width: 900px) {
+  .desktopNav { display: none; }
+  .menuButton {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    padding: 10px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 25%);
+    border-radius: 10px;
+    background: rgb(255 255 255 / 7%);
+    color: #fff;
+    cursor: pointer;
+  }
+  .menuButton svg { width: 24px; height: 24px; }
+  .mobileNav {
+    width: min(100% - 36px, 1200px);
+    margin: 0 auto;
+    padding: 8px 0 18px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .mobileNav a {
+    min-height: 44px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(255 255 255 / 16%);
+    border-radius: 9px;
+    background: rgb(255 255 255 / 6%);
+    color: #e7edf8;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+  }
+  .mobileNav .mobileLogin { border-color: var(--gold); background: var(--gold); color: #172033; }
+
+  .heroInner {
+    min-height: auto;
+    padding: 64px 0 76px;
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .heroCopy { display: flex; flex-direction: column; align-items: center; }
+  .heroCopy h1 { max-width: 740px; }
+  .heroLead { max-width: 680px; }
+  .heroActions { justify-content: center; }
+  .roleAccess { justify-content: center; }
+  .identityCard { width: min(540px, 86%); }
+
+  .sectionInner { padding: 80px 0; }
+  .missionGrid { grid-template-columns: 1fr; gap: 25px; }
+  .missionStatement { max-width: 800px; }
+  .programmeGrid,
+  .capabilityGrid { grid-template-columns: 1fr; }
+  .roleGrid { grid-template-columns: 1fr; }
+  .roleCard > button { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+  .roleCard .chevron { grid-column: auto; margin: 0; }
+  .stepTabs { overflow-x: auto; grid-template-columns: repeat(5, minmax(145px, 1fr)); }
+  .faqInner { width: min(100% - 36px, 1100px); padding: 80px 0; grid-template-columns: 1fr; gap: 38px; }
+  .faqIntro { max-width: 700px; }
+  .ctaInner { grid-template-columns: 1fr; }
+  .ctaButton { justify-self: start; }
+}
+
+@media (max-width: 680px) {
+  .headerInner { min-height: 72px; }
+  .brandDesktop { display: none; }
+  .brandMobile { display: block; width: 50px; }
+  .footerBrand .brandDesktop { display: block; width: 100%; }
+  .footerBrand .brandMobile { display: none; }
+
+  .heroInner,
+  .sectionInner,
+  .footerInner,
+  .footerBottom {
+    width: calc(100% - 28px);
+  }
+  .mobileNav { width: calc(100% - 28px); }
+  .heroInner { padding-top: 52px; }
+  .heroCopy h1 { font-size: clamp(39px, 11vw, 52px); }
+  .heroLead { font-size: 15px; }
+  .heroActions { width: 100%; flex-direction: column; }
+  .primaryButton,
+  .secondaryButton { width: 100%; }
+  .roleAccess { align-items: flex-start; text-align: left; }
+  .identityCard { width: 100%; padding: 25px 18px; border-radius: 20px; }
+  .identityCard::after { right: 18px; bottom: 16px; left: 18px; }
+
+  .sectionInner { padding: 66px 0; }
+  .missionGrid h2,
+  .sectionHeading h2,
+  .sectionHeadingLight h2,
+  .faqIntro h2 { font-size: 34px; }
+  .missionStatement { font-size: 15px; }
+  .pillarGrid { margin-top: 34px; }
+  .pillarCard { padding: 22px; align-items: flex-start; }
+  .sectionHeading { margin-bottom: 35px; }
+  .sectionHeading > p:last-child,
+  .sectionHeadingLight > p:last-child { font-size: 14px; }
+
+  .programmeCard > button,
+  .capabilityCard > button,
+  .roleCard > button { padding: 20px; gap: 13px; }
+  .cardIcon,
+  .capabilityIcon,
+  .roleIcon { width: 46px; height: 46px; }
+  .cardIcon svg,
+  .capabilityIcon svg,
+  .roleIcon svg { width: 24px; height: 24px; }
+  .cardHeading strong { font-size: 15px; }
+  .expandPanel { padding: 0 20px 20px; }
+  .capabilityDetail { padding: 17px 20px 20px; }
+
+  .stepperShell { border-radius: 15px; }
+  .stepTabs { grid-template-columns: repeat(5, 132px); }
+  .stepTabs button { min-height: 126px; padding: 15px 10px; font-size: 11px; }
+  .stepPanel { min-height: 0; padding: 28px 22px; grid-template-columns: 1fr; gap: 18px; }
+  .panelIcon { width: 58px; height: 58px; }
+  .panelIcon svg { width: 30px; height: 30px; }
+  .stepPanel h3 { font-size: 23px; }
+  .stepPanel ul { grid-template-columns: 1fr; }
+
+  .faqInner { width: calc(100% - 28px); padding: 66px 0; }
+  .faqList button { padding: 18px; font-size: 13px; }
+  .faqList article > p { padding: 0 18px 18px; }
+
+  .ctaSection { padding: 54px 14px; }
+  .ctaInner { padding: 31px 24px; text-align: center; }
+  .ctaInner h2 { font-size: 29px; }
+  .ctaButton { width: 100%; justify-self: stretch; }
+
+  .footerInner { padding: 45px 0 35px; grid-template-columns: 1fr; gap: 38px; }
+  .footerNavGroup { gap: 32px; }
+  .footerBottom { flex-direction: column; align-items: flex-start; gap: 7px; }
+}
+
+@media (max-width: 390px) {
+  .heroCopy h1 { font-size: 37px; }
+  .programmeCard > button,
+  .capabilityCard > button,
+  .roleCard > button { grid-template-columns: auto minmax(0, 1fr); }
+  .programmeCard .chevron,
+  .capabilityCard .chevron,
+  .roleCard .chevron { grid-column: 1 / -1; justify-self: center; }
+  .mobileNav { grid-template-columns: 1fr; }
+  .footerNavGroup { grid-template-columns: 1fr 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
