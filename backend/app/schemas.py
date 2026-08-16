@@ -2,12 +2,13 @@
 Pydantic Schemas for SYS AI Lecturer System
 """
 
-from pydantic import BaseModel, EmailStr, Field, SecretStr
-from typing import Optional, List, Any, Dict, Literal
+from pydantic import BaseModel, EmailStr, Field, SecretStr, StringConstraints
+from typing import Optional, List, Any, Dict, Literal, Annotated
 from datetime import datetime
 
 UserRole = Literal["super_admin", "admin", "faculty", "student"]
 ProvisionableRole = Literal["student", "faculty"]
+CleanName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 # =========================
 # User Schemas
@@ -19,7 +20,7 @@ class UserBase(BaseModel):
     roll_number: Optional[str] = None
 
 class UserCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
+    name: CleanName
     email: EmailStr
     role: ProvisionableRole
     roll_number: Optional[str] = Field(None, max_length=50)
@@ -44,6 +45,13 @@ class UserOut(BaseModel):
     role: UserRole
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
+    college: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    admission_year: Optional[int] = None
+    present_year: Optional[int] = None
+    academic_status: Optional[str] = None
+    employment_status: Optional[str] = None
     photo_url: Optional[str] = None
     is_active: bool = True
     account_status: str = "PENDING_ACTIVATION"
@@ -55,17 +63,26 @@ class UserOut(BaseModel):
 
 
 class AdminUserCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
+    name: CleanName
     email: Optional[EmailStr] = None
     mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
     mobile_is_personal: bool = True
     roll_number: Optional[str] = Field(None, max_length=50)
     employee_code: Optional[str] = Field(None, max_length=50)
     photo_url: Optional[str] = None
+    college: Optional[str] = Field(None, max_length=160)
+    department: Optional[str] = Field(None, max_length=160)
+    designation: Optional[str] = Field(None, max_length=120)
+    admission_year: Optional[int] = Field(None, ge=1900, le=2200)
+    present_year: Optional[int] = Field(None, ge=1, le=20)
+    academic_status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+    employment_status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+
+    model_config = {"extra": "forbid"}
 
 
 class AdminUserUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    name: Optional[CleanName] = None
     email: Optional[EmailStr] = None
     mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
     mobile_is_personal: Optional[bool] = None
@@ -74,6 +91,93 @@ class AdminUserUpdate(BaseModel):
     photo_url: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[SecretStr] = None
+    college: Optional[str] = Field(None, max_length=160)
+    department: Optional[str] = Field(None, max_length=160)
+    designation: Optional[str] = Field(None, max_length=120)
+    admission_year: Optional[int] = Field(None, ge=1900, le=2200)
+    present_year: Optional[int] = Field(None, ge=1, le=20)
+    academic_status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+    employment_status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+
+    model_config = {"extra": "forbid"}
+
+
+class MasterProgrammeOut(BaseModel):
+    id: int
+    title: str
+
+
+class AdminMasterRecordOut(BaseModel):
+    id: int
+    role: ProvisionableRole
+    name: str
+    roll_number: Optional[str] = None
+    employee_code: Optional[str] = None
+    email: Optional[EmailStr] = None
+    email_verified: bool
+    mobile_masked: Optional[str] = None
+    mobile_verified: bool
+    registration_status: str
+    is_active: bool
+    college: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    admission_year: Optional[int] = None
+    present_year: Optional[int] = None
+    academic_status: Optional[str] = None
+    employment_status: Optional[str] = None
+    programmes: List[MasterProgrammeOut] = []
+    coordinator_assignments: int = 0
+    subject_expert_assignments: int = 0
+    last_login_at: Optional[datetime] = None
+    last_login_available: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AdminMasterPageOut(BaseModel):
+    items: List[AdminMasterRecordOut]
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    page_size: Literal[25, 50, 100]
+
+
+class AdminBulkStatusRequest(BaseModel):
+    ids: List[int] = Field(..., min_length=1, max_length=500)
+    action: Literal["activate", "deactivate"]
+
+    model_config = {"extra": "forbid"}
+
+
+class AdminBulkAssignmentRequest(BaseModel):
+    faculty_ids: List[int] = Field(..., min_length=1, max_length=500)
+    assignment_type: Literal["course_coordinator", "subject_expert"]
+    target_id: int = Field(..., ge=1)
+
+    model_config = {"extra": "forbid"}
+
+
+class AdminBulkResultItem(BaseModel):
+    id: int
+    success: bool
+    error: Optional[str] = None
+
+
+class AdminBulkResultOut(BaseModel):
+    succeeded: int
+    failed: int
+    results: List[AdminBulkResultItem]
+
+
+class AdminAuditLogOut(BaseModel):
+    id: int
+    actor_user_id: Optional[int] = None
+    actor_name: Optional[str] = None
+    action: str
+    target_type: str
+    target_id: Optional[int] = None
+    summary: str
+    created_at: datetime
 
 
 class AdminMasterRecordCreate(AdminUserCreate):

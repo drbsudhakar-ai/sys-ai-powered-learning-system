@@ -62,6 +62,13 @@ class User(Base):
     role = Column(String(50), nullable=False)  # super_admin, admin, faculty, student
     roll_number = Column(String(50), index=True, nullable=True)
     employee_code = Column(String(50), index=True, nullable=True)
+    college = Column(String(160), nullable=True, index=True)
+    department = Column(String(160), nullable=True, index=True)
+    designation = Column(String(120), nullable=True, index=True)
+    admission_year = Column(Integer, nullable=True, index=True)
+    present_year = Column(Integer, nullable=True, index=True)
+    academic_status = Column(String(32), nullable=True, index=True)
+    employment_status = Column(String(32), nullable=True, index=True)
     photo_url = Column(String(255), nullable=True)
     is_active = Column(Boolean, nullable=False, server_default="true", default=True)
     account_status = Column(
@@ -81,6 +88,23 @@ class User(Base):
     subject_expert_assignments = relationship("SubjectExpertAssignment", back_populates="faculty")
     courses = relationship("Course", back_populates="created_by_user")
     assessments = relationship("Assessment", back_populates="created_by_user")
+
+
+class AdminAuditLog(Base):
+    """Minimal, non-secret audit trail for administrator master-data mutations."""
+
+    __tablename__ = "admin_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(80), nullable=False, index=True)
+    target_type = Column(String(40), nullable=False, index=True)
+    target_id = Column(Integer, nullable=True, index=True)
+    summary = Column(String(255), nullable=False)
+    details = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+    actor = relationship("User")
 
 
 Index(
