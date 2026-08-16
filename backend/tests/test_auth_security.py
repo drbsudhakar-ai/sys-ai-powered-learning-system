@@ -7,11 +7,9 @@ import sys
 import unittest
 import uuid
 
-os.environ.setdefault("DATABASE_URL", "sqlite://")
-os.environ.setdefault("SECRET_KEY", "sys-auth-security-tests-only")
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from tests import isolation as _test_isolation  # noqa: E402,F401
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402

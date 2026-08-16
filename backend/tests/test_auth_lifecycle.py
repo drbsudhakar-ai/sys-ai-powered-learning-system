@@ -7,6 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
+from tests import isolation as _test_isolation  # noqa: F401
 from fastapi.testclient import TestClient
 
 from app import database, models

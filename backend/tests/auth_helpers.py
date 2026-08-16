@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from fastapi.testclient import TestClient
 
 from app import database, models, utils
+from tests.isolation import configure_test_app
 
 
 _TEST_PASSWORD = "TestPass123!"
@@ -28,6 +29,7 @@ class ProtectedUserFactory:
         self.client = client
         self.prefix = prefix
         self._admin: TestIdentity | None = None
+        configure_test_app(self.client.app)
         atexit.register(self.client.close)
 
     def create(self, role: str, extra: dict | None = None) -> TestIdentity:

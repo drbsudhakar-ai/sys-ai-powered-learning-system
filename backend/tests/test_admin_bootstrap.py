@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 
+from tests import isolation as _test_isolation  # noqa: F401
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
