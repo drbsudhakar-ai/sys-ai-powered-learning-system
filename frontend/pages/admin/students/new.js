@@ -6,7 +6,7 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../s
 
 export default function NewStudentPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "", roll_number: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", roll_number: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -30,16 +30,16 @@ export default function NewStudentPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!form.name.trim() || !form.email.trim() || !form.password || !form.roll_number.trim()) {
-      setError("Name, email, password, and roll number are required.");
+    if (!form.name.trim() || !form.roll_number.trim() || (!form.email.trim() && !form.mobile_number.trim())) {
+      setError("Name, roll number, and at least one institutional contact are required.");
       return;
     }
     setSubmitting(true);
     try {
       const res = await adminCreateStudent({
         name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
+        email: form.email.trim() || null,
+        mobile_number: form.mobile_number.trim() || null,
         roll_number: form.roll_number.trim(),
       });
       router.push(`/admin/students/${res.data.id}`);
@@ -58,21 +58,22 @@ export default function NewStudentPage() {
       <h1 className="mt-4 text-2xl font-bold text-[var(--sys-blue)]">Create Student</h1>
       <form onSubmit={onSubmit} className="sys-card mt-6 space-y-4 !max-w-none">
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <p className="text-sm text-slate-600">This creates a pending institutional record. The student sets verified contacts and a password through controlled registration.</p>
         <div>
           <label htmlFor="name" className="mb-1 block text-sm font-semibold">Name *</label>
           <input id="name" name="name" className="input-field" value={form.name} onChange={onChange} required />
         </div>
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-semibold">Email *</label>
-          <input id="email" name="email" type="email" className="input-field" value={form.email} onChange={onChange} required />
+          <label htmlFor="email" className="mb-1 block text-sm font-semibold">Institutional Email</label>
+          <input id="email" name="email" type="email" className="input-field" value={form.email} onChange={onChange} />
+        </div>
+        <div>
+          <label htmlFor="mobile_number" className="mb-1 block text-sm font-semibold">Institutional Mobile (E.164)</label>
+          <input id="mobile_number" name="mobile_number" type="tel" className="input-field" placeholder="+919876543210" value={form.mobile_number} onChange={onChange} />
         </div>
         <div>
           <label htmlFor="roll_number" className="mb-1 block text-sm font-semibold">Roll Number *</label>
           <input id="roll_number" name="roll_number" className="input-field" value={form.roll_number} onChange={onChange} required />
-        </div>
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-semibold">Temporary Password *</label>
-          <input id="password" name="password" type="password" className="input-field" value={form.password} onChange={onChange} required minLength={6} />
         </div>
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Creating…" : "Create Student"}

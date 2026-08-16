@@ -119,9 +119,9 @@ export default function AdminStudentsPage() {
               {students.map((s) => (
                 <tr key={s.id} className="border-b">
                   <td>{s.name}</td>
-                  <td>{s.email}</td>
+                  <td>{s.email || s.institutional_email || "—"}</td>
                   <td>{s.roll_number || "—"}</td>
-                  <td>{s.is_active ? "Active" : "Inactive"}</td>
+                  <td>{s.is_active ? s.account_status.replaceAll("_", " ") : "ACADEMICALLY INACTIVE"}</td>
                   <td className="space-x-2 py-2">
                     <button type="button" className="btn-secondary" onClick={() => router.push(`/admin/students/${s.id}`)}>
                       View

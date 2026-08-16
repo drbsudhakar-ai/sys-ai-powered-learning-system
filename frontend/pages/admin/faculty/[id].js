@@ -129,10 +129,14 @@ export default function FacultyDetailsPage() {
             <h1 className="text-2xl font-bold text-[var(--sys-blue)]">{faculty.name}</h1>
             {success && <p className="mt-2 text-sm text-green-700" role="status">{success}</p>}
             <dl className="mt-4 space-y-2 text-sm">
-              <div><dt className="font-semibold text-[var(--sys-blue)]">Email</dt><dd>{faculty.email}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Login Email</dt><dd>{faculty.email || "—"}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Institutional Email</dt><dd>{faculty.institutional_email || "—"}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Institutional Mobile</dt><dd>{faculty.institutional_mobile || "—"}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Verified Personal Mobile</dt><dd>{faculty.mobile_number || "—"}</dd></div>
               <div><dt className="font-semibold text-[var(--sys-blue)]">Employee Code</dt><dd>{faculty.employee_code || "—"}</dd></div>
               <div><dt className="font-semibold text-[var(--sys-blue)]">System Role</dt><dd>FACULTY</dd></div>
-              <div><dt className="font-semibold text-[var(--sys-blue)]">Status</dt><dd>{faculty.is_active ? "Active" : "Inactive"}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Account Status</dt><dd>{faculty.account_status?.replaceAll("_", " ") || "—"}</dd></div>
+              <div><dt className="font-semibold text-[var(--sys-blue)]">Academic Status</dt><dd>{faculty.is_active ? "Active" : "Inactive"}</dd></div>
             </dl>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href={`/admin/faculty/${faculty.id}/edit`} className="btn-primary no-underline">Edit</Link>

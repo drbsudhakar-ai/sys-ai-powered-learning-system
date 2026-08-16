@@ -7,7 +7,8 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../.
 export default function EditFacultyPage() {
   const router = useRouter();
   const { id } = router.query;
-  const [form, setForm] = useState({ name: "", email: "", employee_code: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", employee_code: "", password: "" });
+  const [accountStatus, setAccountStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -25,9 +26,11 @@ export default function EditFacultyPage() {
         }
         const res = await adminGetFaculty(id);
         const f = res.data.faculty;
+        setAccountStatus(f.account_status || "");
         setForm({
           name: f.name || "",
-          email: f.email || "",
+          email: f.institutional_email || f.email || "",
+          mobile_number: f.institutional_mobile || f.mobile_number || "",
           employee_code: f.employee_code || "",
           password: "",
         });
@@ -54,6 +57,7 @@ export default function EditFacultyPage() {
       const payload = {
         name: form.name.trim(),
         email: form.email.trim(),
+        mobile_number: form.mobile_number.trim() || null,
         employee_code: form.employee_code.trim() || null,
       };
       if (form.password) payload.password = form.password;
@@ -81,17 +85,23 @@ export default function EditFacultyPage() {
             <input id="name" name="name" className="input-field" value={form.name} onChange={onChange} required />
           </div>
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-semibold">Email</label>
+            <label htmlFor="email" className="mb-1 block text-sm font-semibold">Institutional Email</label>
             <input id="email" name="email" type="email" className="input-field" value={form.email} onChange={onChange} required />
+          </div>
+          <div>
+            <label htmlFor="mobile_number" className="mb-1 block text-sm font-semibold">Institutional Mobile (E.164)</label>
+            <input id="mobile_number" name="mobile_number" type="tel" className="input-field" placeholder="+919876543210" value={form.mobile_number} onChange={onChange} />
           </div>
           <div>
             <label htmlFor="employee_code" className="mb-1 block text-sm font-semibold">Employee Code</label>
             <input id="employee_code" name="employee_code" className="input-field" value={form.employee_code} onChange={onChange} />
           </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-semibold">New Password (optional)</label>
-            <input id="password" name="password" type="password" className="input-field" value={form.password} onChange={onChange} minLength={6} />
-          </div>
+          {accountStatus === "ACTIVE" && (
+            <div>
+              <label htmlFor="password" className="mb-1 block text-sm font-semibold">New Password (optional)</label>
+              <input id="password" name="password" type="password" className="input-field" value={form.password} onChange={onChange} minLength={8} autoComplete="new-password" />
+            </div>
+          )}
           <button type="submit" className="btn-primary" disabled={submitting}>
             {submitting ? "Saving…" : "Save Changes"}
           </button>

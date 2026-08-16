@@ -35,7 +35,13 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
   return fallback;
 }
 
-export const registerUser = (data) => API.post("/auth/register", data);
+export const startActivation = (data) => API.post("/auth/activation/start", data);
+export const verifyActivationOtp = (data) => API.post("/auth/activation/verify-otp", data);
+export const verifyActivationContact = (data) => API.post("/auth/activation/verify-contact", data);
+export const completeActivation = (data) => API.post("/auth/activation/complete", data);
+export const startPasswordReset = (data) => API.post("/auth/password-reset/start", data);
+export const verifyPasswordResetOtp = (data) => API.post("/auth/password-reset/verify-otp", data);
+export const completePasswordReset = (data) => API.post("/auth/password-reset/complete", data);
 export const loginUser = (data) =>
   API.post("/auth/login", new URLSearchParams(data));
 export const getMe = () => API.get("/auth/me");

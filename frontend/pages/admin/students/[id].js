@@ -65,10 +65,14 @@ export default function StudentDetailsPage() {
         <article className="sys-card mt-6 !max-w-none">
           <h1 className="text-2xl font-bold text-[var(--sys-blue)]">{student.name}</h1>
           <dl className="mt-4 space-y-2 text-sm">
-            <div><dt className="font-semibold text-[var(--sys-blue)]">Email</dt><dd>{student.email}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Login Email</dt><dd>{student.email || "—"}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Institutional Email</dt><dd>{student.institutional_email || "—"}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Institutional Mobile</dt><dd>{student.institutional_mobile || "—"}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Verified Personal Mobile</dt><dd>{student.mobile_number || "—"}</dd></div>
             <div><dt className="font-semibold text-[var(--sys-blue)]">Roll Number</dt><dd>{student.roll_number || "—"}</dd></div>
             <div><dt className="font-semibold text-[var(--sys-blue)]">System Role</dt><dd>{student.role}</dd></div>
-            <div><dt className="font-semibold text-[var(--sys-blue)]">Status</dt><dd>{student.is_active ? "Active" : "Inactive"}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Account Status</dt><dd>{student.account_status?.replaceAll("_", " ") || "—"}</dd></div>
+            <div><dt className="font-semibold text-[var(--sys-blue)]">Academic Status</dt><dd>{student.is_active ? "Active" : "Inactive"}</dd></div>
           </dl>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href={`/admin/students/${student.id}/edit`} className="btn-primary no-underline">Edit</Link>
