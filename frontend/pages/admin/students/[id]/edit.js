@@ -7,7 +7,7 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../.
 export default function EditStudentPage() {
   const router = useRouter();
   const { id } = router.query;
-  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", roll_number: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", roll_number: "", college: "", admission_year: "", present_year: "", academic_status: "ACTIVE", password: "" });
   const [accountStatus, setAccountStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,10 @@ export default function EditStudentPage() {
           email: res.data.institutional_email || res.data.email || "",
           mobile_number: res.data.institutional_mobile || res.data.mobile_number || "",
           roll_number: res.data.roll_number || "",
+          college: res.data.college || "",
+          admission_year: res.data.admission_year || "",
+          present_year: res.data.present_year || "",
+          academic_status: res.data.academic_status || "ACTIVE",
           password: "",
         });
       } catch (err) {
@@ -58,6 +62,10 @@ export default function EditStudentPage() {
         email: form.email.trim(),
         mobile_number: form.mobile_number.trim() || null,
         roll_number: form.roll_number.trim() || null,
+        college: form.college.trim() || null,
+        admission_year: form.admission_year ? Number(form.admission_year) : null,
+        present_year: form.present_year ? Number(form.present_year) : null,
+        academic_status: form.academic_status,
       };
       if (form.password) payload.password = form.password;
       await adminUpdateStudent(id, payload);
@@ -95,6 +103,10 @@ export default function EditStudentPage() {
             <label htmlFor="roll_number" className="mb-1 block text-sm font-semibold">Roll Number</label>
             <input id="roll_number" name="roll_number" className="input-field" value={form.roll_number} onChange={onChange} />
           </div>
+          <div><label htmlFor="college" className="mb-1 block text-sm font-semibold">College</label><input id="college" name="college" className="input-field" value={form.college} onChange={onChange} /></div>
+          <div><label htmlFor="admission_year" className="mb-1 block text-sm font-semibold">Admission Year</label><input id="admission_year" name="admission_year" type="number" min="1900" max="2200" className="input-field" value={form.admission_year} onChange={onChange} /></div>
+          <div><label htmlFor="present_year" className="mb-1 block text-sm font-semibold">Present Year</label><input id="present_year" name="present_year" type="number" min="1" max="20" className="input-field" value={form.present_year} onChange={onChange} /></div>
+          <div><label htmlFor="academic_status" className="mb-1 block text-sm font-semibold">Academic Status</label><select id="academic_status" name="academic_status" className="input-field" value={form.academic_status} onChange={onChange}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
           {accountStatus === "ACTIVE" && (
             <div>
               <label htmlFor="password" className="mb-1 block text-sm font-semibold">New Password (optional)</label>

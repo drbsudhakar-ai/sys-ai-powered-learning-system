@@ -7,7 +7,8 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
-        "test:auth": "node --test tests/auth.test.mjs"
+        "test:auth": "node --test tests/auth.test.mjs",
+        "test:frontend": "node --test tests/auth.test.mjs tests/admin-master.test.mjs"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",

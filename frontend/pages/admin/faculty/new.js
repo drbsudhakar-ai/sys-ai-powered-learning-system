@@ -6,7 +6,7 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../s
 
 export default function NewFacultyPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", employee_code: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", employee_code: "", college: "", department: "", designation: "", employment_status: "ACTIVE" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,6 +41,10 @@ export default function NewFacultyPage() {
         email: form.email.trim() || null,
         mobile_number: form.mobile_number.trim() || null,
         employee_code: form.employee_code.trim(),
+        college: form.college.trim() || null,
+        department: form.department.trim() || null,
+        designation: form.designation.trim() || null,
+        employment_status: form.employment_status,
       });
       router.push(`/admin/faculty/${res.data.id}`);
     } catch (err) {
@@ -75,6 +79,10 @@ export default function NewFacultyPage() {
           <label htmlFor="employee_code" className="mb-1 block text-sm font-semibold">Employee Code *</label>
           <input id="employee_code" name="employee_code" className="input-field" value={form.employee_code} onChange={onChange} required />
         </div>
+        <div><label htmlFor="college" className="mb-1 block text-sm font-semibold">College</label><input id="college" name="college" className="input-field" value={form.college} onChange={onChange} /></div>
+        <div><label htmlFor="department" className="mb-1 block text-sm font-semibold">Department</label><input id="department" name="department" className="input-field" value={form.department} onChange={onChange} /></div>
+        <div><label htmlFor="designation" className="mb-1 block text-sm font-semibold">Designation</label><input id="designation" name="designation" className="input-field" value={form.designation} onChange={onChange} /></div>
+        <div><label htmlFor="employment_status" className="mb-1 block text-sm font-semibold">Employment Status</label><select id="employment_status" name="employment_status" className="input-field" value={form.employment_status} onChange={onChange}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Creating…" : "Create Faculty"}
         </button>

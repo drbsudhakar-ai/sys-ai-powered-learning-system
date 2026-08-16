@@ -44,9 +44,9 @@ export const verifyPasswordResetOtp = (data) => API.post("/auth/password-reset/v
 export const completePasswordReset = (data) => API.post("/auth/password-reset/complete", data);
 export const loginUser = (data) =>
   API.post("/auth/login", new URLSearchParams(data));
-export const getMe = () => API.get("/auth/me");
+export const getMe = (config) => API.get("/auth/me", config);
 
-export const getCourses = (params) => API.get("/courses/", { params });
+export const getCourses = (params, config) => API.get("/courses/", { ...config, params });
 export const getMyProgrammes = () => API.get("/courses/me");
 export const getCourse = (id) => API.get(`/courses/${id}`);
 export const createCourse = (data) => API.post("/courses/", data);
@@ -60,6 +60,12 @@ export const adminCreateStudent = (data) => API.post("/admin/students", data);
 export const adminUpdateStudent = (id, data) => API.put(`/admin/students/${id}`, data);
 export const adminDeactivateStudent = (id) => API.post(`/admin/students/${id}/deactivate`);
 export const adminActivateStudent = (id) => API.post(`/admin/students/${id}/activate`);
+export const adminListStudentMaster = (params, config) =>
+  API.get("/admin/master/students", { ...config, params });
+export const adminBulkStudentStatus = (data) =>
+  API.post("/admin/master/students/bulk-status", data);
+export const adminExportStudentMaster = (params) =>
+  API.get("/admin/master/students/export", { params, responseType: "blob" });
 
 // Admin — Faculty
 export const adminListFaculty = () => API.get("/admin/faculty");
@@ -68,9 +74,21 @@ export const adminCreateFaculty = (data) => API.post("/admin/faculty", data);
 export const adminUpdateFaculty = (id, data) => API.put(`/admin/faculty/${id}`, data);
 export const adminDeactivateFaculty = (id) => API.post(`/admin/faculty/${id}/deactivate`);
 export const adminActivateFaculty = (id) => API.post(`/admin/faculty/${id}/activate`);
+export const adminListFacultyMaster = (params, config) =>
+  API.get("/admin/master/faculty", { ...config, params });
+export const adminBulkFacultyStatus = (data) =>
+  API.post("/admin/master/faculty/bulk-status", data);
+export const adminBulkFacultyAssignment = (data) =>
+  API.post("/admin/master/faculty/bulk-assignment", data);
+export const adminExportFacultyMaster = (params) =>
+  API.get("/admin/master/faculty/export", { params, responseType: "blob" });
+export const getAdminOperationsSummary = (config) =>
+  API.get("/admin/operations/summary", config);
+export const getAdminAuditLogs = (params, config) =>
+  API.get("/admin/audit-logs", { ...config, params });
 
 // Admin — Subjects & responsibilities
-export const adminListSubjects = () => API.get("/admin/subjects");
+export const adminListSubjects = (config) => API.get("/admin/subjects", config);
 export const adminCreateSubject = (data) => API.post("/admin/subjects", data);
 export const adminListCourseCoordinators = () => API.get("/admin/course-coordinators");
 export const adminAssignCourseCoordinator = (data) =>

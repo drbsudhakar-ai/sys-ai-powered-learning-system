@@ -6,7 +6,7 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../s
 
 export default function NewStudentPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", roll_number: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", roll_number: "", college: "", admission_year: "", present_year: "", academic_status: "ACTIVE" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,6 +41,10 @@ export default function NewStudentPage() {
         email: form.email.trim() || null,
         mobile_number: form.mobile_number.trim() || null,
         roll_number: form.roll_number.trim(),
+        college: form.college.trim() || null,
+        admission_year: form.admission_year ? Number(form.admission_year) : null,
+        present_year: form.present_year ? Number(form.present_year) : null,
+        academic_status: form.academic_status,
       });
       router.push(`/admin/students/${res.data.id}`);
     } catch (err) {
@@ -75,6 +79,10 @@ export default function NewStudentPage() {
           <label htmlFor="roll_number" className="mb-1 block text-sm font-semibold">Roll Number *</label>
           <input id="roll_number" name="roll_number" className="input-field" value={form.roll_number} onChange={onChange} required />
         </div>
+        <div><label htmlFor="college" className="mb-1 block text-sm font-semibold">College</label><input id="college" name="college" className="input-field" value={form.college} onChange={onChange} /></div>
+        <div><label htmlFor="admission_year" className="mb-1 block text-sm font-semibold">Admission Year</label><input id="admission_year" name="admission_year" type="number" min="1900" max="2200" className="input-field" value={form.admission_year} onChange={onChange} /></div>
+        <div><label htmlFor="present_year" className="mb-1 block text-sm font-semibold">Present Year</label><input id="present_year" name="present_year" type="number" min="1" max="20" className="input-field" value={form.present_year} onChange={onChange} /></div>
+        <div><label htmlFor="academic_status" className="mb-1 block text-sm font-semibold">Academic Status</label><select id="academic_status" name="academic_status" className="input-field" value={form.academic_status} onChange={onChange}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Creating…" : "Create Student"}
         </button>

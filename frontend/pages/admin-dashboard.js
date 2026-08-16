@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import {
   AcademicCapIcon,
   ArrowPathIcon,
@@ -10,433 +10,183 @@ import {
   CheckCircleIcon,
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
-  CloudArrowUpIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
-  ShieldCheckIcon,
+  PresentationChartLineIcon,
   UserGroupIcon,
   UsersIcon,
-  WrenchScrewdriverIcon,
-  XCircleIcon,
 } from "@heroicons/react/24/outline";
 import AdminShell from "../components/admin/AdminShell";
+import BrandedState from "../components/admin/BrandedState";
+import useAdminAccess from "../components/admin/useAdminAccess";
 import styles from "../components/admin/AdminDashboard.module.css";
-import {
-  adminListCourseCoordinators,
-  adminListFaculty,
-  adminListStudents,
-  adminListSubjectExperts,
-  adminListSubjects,
-  getCourses,
-  getMe,
-  listNotifications,
-} from "../src/api";
-import { clearSession, getToken, isAdminRole, roleLandingPath } from "../src/auth";
+import { getAdminOperationsSummary, getApiErrorMessage } from "../src/api";
+import { clearSession, roleDisplayLabel } from "../src/auth";
+import { isOperationsSummary } from "../src/adminMaster";
 
-const DATA_LOADERS = {
-  students: adminListStudents,
-  faculty: adminListFaculty,
-  courses: getCourses,
-  subjects: adminListSubjects,
-  coordinators: adminListCourseCoordinators,
-  experts: adminListSubjectExperts,
-  notifications: listNotifications,
-};
+const QUICK_ACTIONS = [
+  { label: "Add student", detail: "Create an individual student master record", href: "/admin/students/new", icon: UsersIcon },
+  { label: "Add faculty", detail: "Create an individual faculty master record", href: "/admin/faculty/new", icon: UserGroupIcon },
+  { label: "Create programme", detail: "Open the existing programme creation flow", href: "/courses/new", icon: AcademicCapIcon },
+  { label: "Assign responsibility", detail: "Select faculty and assign academic ownership", href: "/admin/faculty", icon: PresentationChartLineIcon },
+  { label: "Send notification", detail: "Use the existing notification workspace", href: "/admin/notifications", icon: BellAlertIcon },
+];
 
-const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
-const isInteger = (value) => Number.isInteger(value);
-const isNullableString = (value) => value === null || typeof value === "string";
-
-const COLLECTION_VALIDATORS = {
-  students: (item) => isRecord(item)
-    && isInteger(item.id)
-    && typeof item.name === "string"
-    && typeof item.email === "string"
-    && typeof item.is_active === "boolean"
-    && isNullableString(item.roll_number),
-  faculty: (item) => isRecord(item)
-    && isInteger(item.id)
-    && typeof item.name === "string"
-    && typeof item.email === "string"
-    && typeof item.is_active === "boolean"
-    && isNullableString(item.employee_code),
-  courses: (item) => isRecord(item) && isInteger(item.id) && typeof item.is_active === "boolean",
-  subjects: (item) => isRecord(item) && isInteger(item.id),
-  coordinators: (item) => isRecord(item) && isInteger(item.course_id),
-  experts: (item) => isRecord(item) && isInteger(item.subject_id),
-  notifications: (item) => isRecord(item)
-    && typeof item.status === "string"
-    && isNullableString(item.failure_reason),
-};
-
-function isValidCollection(key, data) {
-  const validateItem = COLLECTION_VALIDATORS[key];
-  return Array.isArray(data) && Boolean(validateItem) && data.every(validateItem);
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-function sourceValue(sources, key) {
-  return sources[key]?.available ? sources[key].data : null;
+function ReadinessStatus({ status }) {
+  const label = status === "complete" ? "Complete" : status === "needs_attention" ? "Needs attention" : "Unavailable";
+  const Icon = status === "complete" ? CheckCircleIcon : status === "needs_attention" ? ExclamationTriangleIcon : InformationCircleIcon;
+  return <span className={`${styles.readinessStatus} ${styles[`readiness_${status}`]}`}><Icon aria-hidden="true" />{label}</span>;
 }
 
-function MetricCard({ icon: Icon, label, value, note, available = true }) {
+function MetricCard({ icon: Icon, title, value, detail, state = "available" }) {
   return (
-    <article className={styles.metricCard}>
+    <article className={styles.metricCard} aria-busy={state === "loading"}>
       <span className={styles.metricIcon}><Icon aria-hidden="true" /></span>
       <div>
-        <p>{label}</p>
-        <strong>{available ? value : "Unavailable"}</strong>
-        <span>{available ? note : "The source is unavailable or returned invalid data."}</span>
+        <p>{title}</p>
+        <strong>{state === "loading" ? "…" : state === "available" ? value : "Unavailable"}</strong>
+        <span>{state === "available" ? detail : state === "loading" ? "Loading current data" : "The source returned invalid or unavailable data."}</span>
       </div>
     </article>
   );
 }
 
-function StatusPill({ status }) {
-  const labels = { complete: "Complete", pending: "Needs attention", unavailable: "Unavailable" };
-  const Icon = status === "complete" ? CheckCircleIcon : status === "pending" ? ExclamationTriangleIcon : InformationCircleIcon;
-  return (
-    <span className={`${styles.statusPill} ${styles[`status_${status}`]}`}>
-      <Icon aria-hidden="true" /> {labels[status]}
-    </span>
-  );
-}
-
-function AttentionCard({ title, description, count, available, href, action }) {
-  return (
-    <article className={styles.attentionCard}>
-      <div className={styles.attentionTop}>
-        <span className={!available ? styles.neutralIssue : count > 0 ? styles.openIssue : styles.clearIssue}>
-          {!available ? <InformationCircleIcon aria-hidden="true" /> : count > 0 ? <ExclamationTriangleIcon aria-hidden="true" /> : <CheckCircleIcon aria-hidden="true" />}
-        </span>
-        <strong>{available ? count : "—"}</strong>
-      </div>
-      <h3>{title}</h3>
-      <p>{available ? description : "This check is unavailable because its source is unavailable or invalid."}</p>
-      {href && <Link href={href}>{action}<ChevronRightIcon aria-hidden="true" /></Link>}
-    </article>
-  );
+function EmptyOperationalState({ message }) {
+  return <div className={styles.emptyOperational}><InformationCircleIcon aria-hidden="true" /><p>{message}</p></div>;
 }
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
-  const [sources, setSources] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
+  const access = useAdminAccess();
+  const [data, setData] = useState(null);
+  const [status, setStatus] = useState("loading");
+  const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (access.status !== "ready") return undefined;
+    const controller = new AbortController();
     let active = true;
-
-    async function load() {
-      setLoading(true);
-      setPageError("");
-
-      if (!getToken()) {
-        await router.replace("/login?reason=unauthorized");
-        return;
-      }
-
-      try {
-        const { data: account } = await getMe();
+    setStatus("loading");
+    setError("");
+    getAdminOperationsSummary({ signal: controller.signal })
+      .then((response) => {
         if (!active) return;
-        if (!account.is_active) {
-          clearSession();
-          await router.replace("/login?reason=unauthorized");
+        if (!isOperationsSummary(response?.data)) {
+          setData(null);
+          setStatus("unavailable");
           return;
         }
-        if (!isAdminRole(account.role)) {
-          await router.replace(roleLandingPath(account.role) || "/login?reason=unauthorized");
-          return;
-        }
-        setUser(account);
-
-        const entries = Object.entries(DATA_LOADERS);
-        const results = await Promise.allSettled(entries.map(([, loader]) => loader()));
-        if (!active) return;
-
-        const rejectedStatus = (statusCode) => results.some(
-          (result) => result.status === "rejected" && result.reason?.response?.status === statusCode,
-        );
-        if (rejectedStatus(401)) {
-          setSources({});
-          setUser(null);
+        setData(response.data);
+        setStatus("available");
+      })
+      .catch(async (requestError) => {
+        if (!active || requestError?.code === "ERR_CANCELED") return;
+        if (requestError?.response?.status === 401) {
           clearSession();
           await router.replace("/login?reason=expired");
           return;
         }
-        if (rejectedStatus(403)) {
-          setSources({});
-          setUser(null);
-          clearSession();
+        if (requestError?.response?.status === 403) {
           await router.replace("/login?reason=unauthorized");
           return;
         }
+        setError(getApiErrorMessage(requestError, "SYS operations data could not be loaded."));
+        setStatus("error");
+      });
+    return () => { active = false; controller.abort(); };
+  }, [access.status, refreshKey, router]);
 
-        const nextSources = {};
-        results.forEach((result, index) => {
-          const key = entries[index][0];
-          if (result.status === "fulfilled" && isValidCollection(key, result.value?.data)) {
-            nextSources[key] = { available: true, data: result.value.data };
-          } else {
-            nextSources[key] = {
-              available: false,
-              data: null,
-              reason: result.status === "fulfilled" ? "invalid-response" : "request-failed",
-            };
-          }
-        });
-        setSources(nextSources);
-      } catch (error) {
-        if (!active) return;
-        if (error?.response?.status === 401) {
-          clearSession();
-          await router.replace("/login?reason=expired");
-          return;
-        }
-        if (error?.response?.status === 403) {
-          setSources({});
-          setUser(null);
-          clearSession();
-          await router.replace("/login?reason=unauthorized");
-          return;
-        } else {
-          setPageError("SYS could not verify the administrator account. Check the API service and try again.");
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
+  if (access.status === "checking") return <BrandedState />;
+  if (access.status === "error") return <BrandedState type="error" title="Administrator workspace unavailable" message={access.error} actionHref="/login" actionLabel="Return to login" />;
 
-    load();
-    return () => {
-      active = false;
-    };
-  }, [reloadKey, router]);
-
-  const students = sourceValue(sources, "students");
-  const faculty = sourceValue(sources, "faculty");
-  const courses = sourceValue(sources, "courses");
-  const subjects = sourceValue(sources, "subjects");
-  const coordinators = sourceValue(sources, "coordinators");
-  const experts = sourceValue(sources, "experts");
-  const notifications = sourceValue(sources, "notifications");
-
-  const activeStudents = students?.filter((item) => item.is_active).length;
-  const activeFaculty = faculty?.filter((item) => item.is_active).length;
-  const activeCourses = courses?.filter((item) => item.is_active).length;
-  const coordinatorCourseIds = new Set((coordinators || []).map((item) => item.course_id));
-  const coursesWithoutCoordinator = courses && coordinators
-    ? courses.filter((course) => course.is_active && !coordinatorCourseIds.has(course.id)).length
-    : null;
-  const expertSubjectIds = new Set((experts || []).map((item) => item.subject_id));
-  const subjectsWithoutExpert = subjects && experts ? subjects.filter((subject) => !expertSubjectIds.has(subject.id)).length : null;
-  const incompleteStudents = students?.filter((item) => item.is_active && (!item.name || !item.email || !item.roll_number)).length;
-  const incompleteFaculty = faculty?.filter((item) => item.is_active && (!item.name || !item.email || !item.employee_code)).length;
-  const failedNotifications = notifications?.filter((item) => {
-    const status = String(item.status || "").toUpperCase();
-    return Boolean(item.failure_reason) || ["FAILED", "ERROR", "DEAD_LETTER"].includes(status);
-  }).length;
-  const unavailableCount = Object.values(sources).filter((source) => source.available === false).length;
-
-  const setupItems = [
-    {
-      title: "Master data upload",
-      description: "No master-upload or import-history endpoint exists in the current frontend API.",
-      status: "unavailable",
-    },
-    {
-      title: "At least one active programme is available",
-      description: courses ? `${activeCourses} of ${courses.length} programmes are active.` : "Programme data could not be loaded.",
-      status: courses ? (activeCourses > 0 ? "complete" : "pending") : "unavailable",
-      href: "/courses",
-    },
-    {
-      title: "Course coordinators assigned",
-      description: courses && coordinators ? `${coursesWithoutCoordinator} active programmes currently have no coordinator.` : "Coordinator coverage could not be checked.",
-      status: courses && coordinators ? (activeCourses > 0 && coursesWithoutCoordinator === 0 ? "complete" : "pending") : "unavailable",
-      href: "/admin/faculty",
-    },
-    {
-      title: "Subjects and experts configured",
-      description: subjects && experts ? `${subjectsWithoutExpert} subjects currently have no subject expert.` : "Subject-expert coverage could not be checked.",
-      status: subjects && experts ? (subjects.length > 0 && subjectsWithoutExpert === 0 ? "complete" : "pending") : "unavailable",
-      href: "/admin/faculty",
-    },
-    {
-      title: "At least one active student and faculty account exists",
-      description: students && faculty
-        ? `${activeStudents} active student ${activeStudents === 1 ? "account" : "accounts"} and ${activeFaculty} active faculty ${activeFaculty === 1 ? "account" : "accounts"}.`
-        : "Account activation could not be checked.",
-      status: students && faculty ? (activeStudents > 0 && activeFaculty > 0 ? "complete" : "pending") : "unavailable",
-      href: "/admin/students",
-    },
-    {
-      title: "Configuration readiness audit",
-      description: "No consolidated configuration-readiness endpoint exists in the current system.",
-      status: "unavailable",
-    },
-  ];
-
-  if (!user) {
-    return (
-      <>
-        <Head>
-          <title>Administrator Overview | SYS</title>
-          <meta name="description" content="SYS administrator operations and readiness dashboard." />
-        </Head>
-        <main className={styles.authorizationGate}>
-          {pageError ? (
-            <div role="alert">
-              <XCircleIcon aria-hidden="true" />
-              <h1>Administrator workspace unavailable</h1>
-              <p>{pageError}</p>
-              <Link href="/login">Return to login</Link>
-            </div>
-          ) : (
-            <div role="status" aria-live="polite">
-              <span aria-hidden="true" />
-              <h1>Verifying administrator access</h1>
-              <p>SYS is confirming your account before opening the workspace.</p>
-            </div>
-          )}
-        </main>
-      </>
-    );
-  }
+  const metricState = status === "loading" ? "loading" : data ? "available" : "unavailable";
+  const activity = data?.recent_admin_activity;
+  const operations = data?.recent_operations;
+  const name = typeof access.user?.name === "string" && access.user.name.trim() ? access.user.name.trim() : null;
 
   return (
     <>
-      <Head>
-        <title>Administrator Overview | SYS</title>
-        <meta name="description" content="SYS administrator operations and readiness dashboard." />
-      </Head>
-      <AdminShell user={user} notificationFailures={failedNotifications || 0}>
+      <Head><title>Operations Overview | SYS</title><meta name="description" content="SYS administrator operations and readiness dashboard." /><link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" /></Head>
+      <AdminShell user={access.user} unreadNotifications={data?.unread_notifications || 0} pageTitle="Operations Overview" scopeLabel={data?.scope_label}>
         <div className={styles.dashboardContent}>
-          <section className={styles.pageHeading}>
+          <section className={styles.welcomeHeader}>
             <div>
               <p className={styles.eyebrow}>Administrator workspace</p>
-              <h1>Overview</h1>
-              <p>Monitor verified academic setup, account readiness and operational attention across SYS.</p>
+              <h1>{name ? `${greeting()}, ${name}` : "Welcome back"}</h1>
+              <p>Review current master-data readiness, academic operations and actionable attention across your authorized scope.</p>
+              <div className={styles.scopeBadges}>
+                <span>{access.user?.role === "super_admin" ? "Super Admin" : "Institution Admin"}</span>
+                {data?.scope_label && <span>{data.scope_label}</span>}
+              </div>
             </div>
-            <button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={loading}>
-              <ArrowPathIcon aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh data"}
-            </button>
+            <div className={styles.refreshArea}>
+              <button type="button" onClick={() => setRefreshKey((value) => value + 1)} disabled={status === "loading"}><ArrowPathIcon aria-hidden="true" />{status === "loading" ? "Refreshing…" : "Refresh data"}</button>
+              <span>{data?.generated_at ? `Last updated ${new Date(data.generated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not updated yet"}</span>
+            </div>
           </section>
 
-          {pageError && (
-            <section className={styles.pageError} role="alert">
-              <XCircleIcon aria-hidden="true" />
-              <div><strong>Dashboard unavailable</strong><p>{pageError}</p></div>
-            </section>
-          )}
+          {status === "error" && <div className={styles.pageError} role="alert"><ExclamationTriangleIcon aria-hidden="true" /><div><strong>Operations data unavailable</strong><p>{error}</p></div></div>}
+          {status === "unavailable" && <div className={styles.partialBanner} role="status"><InformationCircleIcon aria-hidden="true" /><p>The operations endpoint returned a malformed response. Counts and readiness are shown as unavailable.</p></div>}
 
-          {loading && !pageError && (
-            <section className={styles.loadingPanel} role="status" aria-live="polite">
-              <span aria-hidden="true" /> Loading verified administrator data…
-            </section>
-          )}
+          <section className={styles.metricsGrid} aria-label="Operations summary">
+            <MetricCard icon={UsersIcon} title="Students" state={metricState} value={data?.students.total} detail={`${data?.students.active} active · ${data?.students.pending_activation} pending activation`} />
+            <MetricCard icon={UserGroupIcon} title="Faculty" state={metricState} value={data?.faculty.total} detail={`${data?.faculty.active} active · ${data?.faculty.pending_activation} pending activation`} />
+            <MetricCard icon={AcademicCapIcon} title="Programmes" state={metricState} value={data?.programmes.total} detail={`${data?.programmes.active} active · ${data?.programmes.draft} draft`} />
+            <MetricCard icon={ExclamationTriangleIcon} title="Attention Required" state={metricState} value={data?.attention_required.total} detail="Validated actionable items across available sources" />
+          </section>
 
-          {!loading && !pageError && (
-            <>
-              {unavailableCount > 0 && (
-                <section className={styles.partialBanner} role="status">
-                  <InformationCircleIcon aria-hidden="true" />
-                  <p><strong>Partial live data.</strong> {unavailableCount} administrator data {unavailableCount === 1 ? "source is" : "sources are"} unavailable. Affected cards are labelled rather than estimated.</p>
-                </section>
-              )}
+          <section className={styles.sectionBlock} aria-labelledby="quick-actions-title">
+            <div className={styles.sectionHeading}><div><p>Working routes</p><h2 id="quick-actions-title">Quick actions</h2></div></div>
+            <div className={styles.quickActions}>{QUICK_ACTIONS.map(({ label, detail, href, icon: Icon }) => <Link key={href + label} href={href}><Icon aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span><ChevronRightIcon aria-hidden="true" /></Link>)}</div>
+          </section>
 
-              <section className={styles.metricsGrid} aria-label="Current account and programme totals">
-                <MetricCard icon={UsersIcon} label="Active students" value={activeStudents} note={`${students?.length || 0} total student ${students?.length === 1 ? "account" : "accounts"}`} available={students !== null} />
-                <MetricCard icon={UserGroupIcon} label="Active faculty" value={activeFaculty} note={`${faculty?.length || 0} total faculty ${faculty?.length === 1 ? "account" : "accounts"}`} available={faculty !== null} />
-                <MetricCard icon={AcademicCapIcon} label="Active programmes" value={activeCourses} note={`${courses?.length || 0} programmes configured`} available={courses !== null} />
-                <MetricCard icon={BookOpenIcon} label="Configured subjects" value={subjects?.length} note="Across available programmes" available={subjects !== null} />
-              </section>
+          <section className={styles.sectionBlock} aria-labelledby="attention-title">
+            <div className={styles.sectionHeading}><div><p>Validated API data</p><h2 id="attention-title">Attention required</h2></div></div>
+            {data ? (
+              <div className={styles.attentionGrid}>{data.attention.map((item) => <article key={item.key}><span className={item.count > 0 ? styles.attentionOpen : styles.attentionClear}>{item.count > 0 ? <ExclamationTriangleIcon aria-hidden="true" /> : <CheckCircleIcon aria-hidden="true" />}</span><strong>{item.count}</strong><h3>{item.label}</h3><Link href={item.href}>Review records <ChevronRightIcon aria-hidden="true" /></Link></article>)}</div>
+            ) : <EmptyOperationalState message="Attention checks are unavailable until the operations response is valid." />}
+          </section>
 
-              <section className={styles.sectionBlock} aria-labelledby="attention-title">
-                <div className={styles.sectionHeading}>
-                  <div><p className={styles.eyebrow}>Operational review</p><h2 id="attention-title">Needs attention</h2></div>
-                  <span>Derived from current SYS records</span>
-                </div>
-                <div className={styles.attentionGrid}>
-                  <AttentionCard title="Programmes without coordinators" count={coursesWithoutCoordinator} available={Boolean(courses && coordinators)} description="Active programmes need a course coordinator assignment." href="/admin/faculty" action="Review responsibilities" />
-                  <AttentionCard title="Subjects without experts" count={subjectsWithoutExpert} available={Boolean(subjects && experts)} description="Configured subjects need an assigned subject expert." href="/admin/faculty" action="Assign subject experts" />
-                  <AttentionCard title="Incomplete account records" count={students && faculty ? incompleteStudents + incompleteFaculty : null} available={Boolean(students && faculty)} description="Active accounts are missing a required institutional identifier or profile field." href="/admin/students" action="Review accounts" />
-                  <AttentionCard title="Notification failures in latest results" count={failedNotifications} available={notifications !== null} description={failedNotifications === 0 ? "No failures found in the latest notification results." : "The latest notification results include a failure status or reason."} href="/admin/notifications" action="Open notifications" />
-                </div>
-              </section>
-
-              <div className={styles.dashboardColumns}>
-                <section className={styles.sectionCard} aria-labelledby="setup-title">
-                  <div className={styles.cardHeading}>
-                    <span className={styles.headingIcon}><ClipboardDocumentCheckIcon aria-hidden="true" /></span>
-                    <div><h2 id="setup-title">Institution setup checklist</h2><p>Live checks where supporting APIs exist.</p></div>
-                  </div>
-                  <div className={styles.checklist}>
-                    {setupItems.map((item) => (
-                      <div className={styles.checklistRow} key={item.title}>
-                        <div><strong>{item.title}</strong><p>{item.description}</p>{item.href && <Link href={item.href}>Open setup <ChevronRightIcon aria-hidden="true" /></Link>}</div>
-                        <StatusPill status={item.status} />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <aside className={styles.quickPanel} aria-labelledby="quick-title">
-                  <div className={styles.cardHeading}>
-                    <span className={styles.headingIcon}><WrenchScrewdriverIcon aria-hidden="true" /></span>
-                    <div><h2 id="quick-title">Quick actions</h2><p>Verified administrative routes.</p></div>
-                  </div>
-                  <div className={styles.quickLinks}>
-                    <Link href="/admin/students/new"><UsersIcon aria-hidden="true" /><span><strong>Add a student</strong><small>Create an institutional account</small></span><ChevronRightIcon aria-hidden="true" /></Link>
-                    <Link href="/admin/faculty/new"><UserGroupIcon aria-hidden="true" /><span><strong>Add faculty</strong><small>Create a faculty account</small></span><ChevronRightIcon aria-hidden="true" /></Link>
-                    <Link href="/courses/new"><AcademicCapIcon aria-hidden="true" /><span><strong>Create a programme</strong><small>Define programme metadata</small></span><ChevronRightIcon aria-hidden="true" /></Link>
-                    <Link href="/admin/faculty"><ShieldCheckIcon aria-hidden="true" /><span><strong>Assign responsibilities</strong><small>Coordinators and subject experts</small></span><ChevronRightIcon aria-hidden="true" /></Link>
-                  </div>
-                </aside>
+          <section className={styles.readinessCard} aria-labelledby="readiness-title">
+            <details open>
+              <summary><span><CheckCircleIcon aria-hidden="true" /><span><strong id="readiness-title">Setup & Operational Readiness</strong><small>Exact predicates from available platform data</small></span></span><ChevronRightIcon aria-hidden="true" /></summary>
+              <div className={styles.readinessList}>
+                {data ? data.readiness.map((item) => <div key={item.key}><div><strong>{item.label}</strong><p>{item.detail}</p></div><ReadinessStatus status={item.status} /></div>) : <EmptyOperationalState message="Readiness checks are unavailable." />}
               </div>
+            </details>
+          </section>
 
-              <section className={styles.sectionBlock} aria-labelledby="governance-title">
-                <div className={styles.sectionHeading}>
-                  <div><p className={styles.eyebrow}>Academic governance</p><h2 id="governance-title">Course responsibility model</h2></div>
-                </div>
-                <div className={styles.governanceGrid}>
-                  <article><span>01</span><h3>Administrator</h3><p>Owns programme metadata, scope, faculty assignment and activation.</p></article>
-                  <article><span>02</span><h3>Course coordinator</h3><p>Supervises detailed programme structure and academic delivery.</p></article>
-                  <article><span>03</span><h3>Subject expert</h3><p>Owns content for assigned subjects, units and topics.</p></article>
-                </div>
-                <div className={styles.governanceNotes}>
-                  <p><CheckCircleIcon aria-hidden="true" /> English Communication is separately enrolable through its own programme configuration.</p>
-                  <p><CheckCircleIcon aria-hidden="true" /> Motivation and student support remain cross-cutting services rather than programme ownership.</p>
-                  <p><InformationCircleIcon aria-hidden="true" /> Administrative overrides require an auditable record; no audit-log endpoint is currently available.</p>
-                </div>
-              </section>
+          <section className={styles.operationsGrid} aria-label="Operational panels">
+            <article>
+              <div className={styles.panelHeading}><span><AcademicCapIcon aria-hidden="true" /></span><div><h2>Academic Operations</h2><p>Current configured academic structures</p></div></div>
+              {data ? <dl className={styles.compactStats}><div><dt>Programmes</dt><dd>{data.academic_operations.programmes}</dd></div><div><dt>Subjects</dt><dd>{data.academic_operations.subjects}</dd></div><div><dt>Coordinator assignments</dt><dd>{data.academic_operations.coordinator_assignments}</dd></div><div><dt>Expert assignments</dt><dd>{data.academic_operations.expert_assignments}</dd></div></dl> : <EmptyOperationalState message="Academic operations are unavailable." />}
+            </article>
 
-              <section className={styles.auditGrid}>
-                <details className={styles.detailsCard}>
-                  <summary><span><ShieldCheckIcon aria-hidden="true" /> System and configuration readiness</span><ChevronRightIcon aria-hidden="true" /></summary>
-                  <div>
-                    <p>SYS can currently verify account activation, programme activation, coordinator coverage and subject-expert coverage from live APIs.</p>
-                    <p className={styles.unavailableNote}><InformationCircleIcon aria-hidden="true" /> A consolidated readiness score is not shown because no readiness-audit endpoint exists.</p>
-                  </div>
-                </details>
-                <details className={styles.detailsCard}>
-                  <summary><span><CloudArrowUpIcon aria-hidden="true" /> Imports and validation</span><ChevronRightIcon aria-hidden="true" /></summary>
-                  <div>
-                    <p>No master-upload, import history, duplicate-record report or failed-row endpoint is available in the current frontend API.</p>
-                    <p className={styles.unavailableNote}><InformationCircleIcon aria-hidden="true" /> Import counts and validation rows are intentionally unavailable.</p>
-                  </div>
-                </details>
-                <details className={styles.detailsCard}>
-                  <summary><span><BellAlertIcon aria-hidden="true" /> Recent administrative activity</span><ChevronRightIcon aria-hidden="true" /></summary>
-                  <div>
-                    <p>No audit-log or recent-activity endpoint is available. SYS does not invent administrative events.</p>
-                    <p className={styles.unavailableNote}><InformationCircleIcon aria-hidden="true" /> Activity will appear here when a verified audit source is connected.</p>
-                  </div>
-                </details>
-              </section>
-            </>
-          )}
+            <article>
+              <div className={styles.panelHeading}><span><ClipboardDocumentCheckIcon aria-hidden="true" /></span><div><h2>Recent Assessments & Sessions</h2><p>Latest records from real operation tables</p></div></div>
+              {operations && (operations.assessments.length || operations.learning_sessions.length) ? <ul className={styles.operationList}>{operations.assessments.map((item) => <li key={`a-${item.id}`}><Link href={`/assessments/${item.id}`}>{item.title}</Link><span>{item.status} · Assessment</span></li>)}{operations.learning_sessions.map((item) => <li key={`s-${item.id}`}><Link href={`/learning-sessions/${item.id}`}>{item.title}</Link><span>{item.status} · Learning session</span></li>)}</ul> : <EmptyOperationalState message={data ? "No assessments or learning sessions are available yet." : "Recent operations are unavailable."} />}
+            </article>
+
+            <article>
+              <div className={styles.panelHeading}><span><PresentationChartLineIcon aria-hidden="true" /></span><div><h2>Early Warning Summary</h2><p>Students with high-priority learning gaps</p></div></div>
+              {data ? <div className={styles.earlyWarning}><strong>{data.early_warning.students_requiring_attention}</strong><span>students currently require attention</span><Link href="/analytics/admin">Open learning intelligence <ChevronRightIcon aria-hidden="true" /></Link></div> : <EmptyOperationalState message="Early-warning data is unavailable." />}
+            </article>
+
+            <article id="system-administration">
+              <div className={styles.panelHeading}><span><BookOpenIcon aria-hidden="true" /></span><div><h2>Recent Administrative Activity</h2><p>Security-audited master-data changes</p></div></div>
+              {activity?.available ? (activity.items.length ? <ul className={styles.operationList}>{activity.items.map((item) => <li key={item.id}><strong>{item.summary}</strong><span>{new Date(item.created_at).toLocaleString()}</span></li>)}</ul> : <EmptyOperationalState message="No audited administrative changes are available yet." />) : <EmptyOperationalState message={activity?.reason || "Administrative activity is unavailable."} />}
+            </article>
+          </section>
+
+          <p className={styles.authorityNote}>Signed in as {roleDisplayLabel(access.user?.role)}. Client-side checks supplement, but do not replace, backend authorization.</p>
         </div>
       </AdminShell>
     </>

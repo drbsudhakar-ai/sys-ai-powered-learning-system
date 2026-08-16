@@ -7,7 +7,7 @@ import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../../.
 export default function EditFacultyPage() {
   const router = useRouter();
   const { id } = router.query;
-  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", employee_code: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", mobile_number: "", employee_code: "", college: "", department: "", designation: "", employment_status: "ACTIVE", password: "" });
   const [accountStatus, setAccountStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,10 @@ export default function EditFacultyPage() {
           email: f.institutional_email || f.email || "",
           mobile_number: f.institutional_mobile || f.mobile_number || "",
           employee_code: f.employee_code || "",
+          college: f.college || "",
+          department: f.department || "",
+          designation: f.designation || "",
+          employment_status: f.employment_status || "ACTIVE",
           password: "",
         });
       } catch (err) {
@@ -59,6 +63,10 @@ export default function EditFacultyPage() {
         email: form.email.trim(),
         mobile_number: form.mobile_number.trim() || null,
         employee_code: form.employee_code.trim() || null,
+        college: form.college.trim() || null,
+        department: form.department.trim() || null,
+        designation: form.designation.trim() || null,
+        employment_status: form.employment_status,
       };
       if (form.password) payload.password = form.password;
       await adminUpdateFaculty(id, payload);
@@ -96,6 +104,10 @@ export default function EditFacultyPage() {
             <label htmlFor="employee_code" className="mb-1 block text-sm font-semibold">Employee Code</label>
             <input id="employee_code" name="employee_code" className="input-field" value={form.employee_code} onChange={onChange} />
           </div>
+          <div><label htmlFor="college" className="mb-1 block text-sm font-semibold">College</label><input id="college" name="college" className="input-field" value={form.college} onChange={onChange} /></div>
+          <div><label htmlFor="department" className="mb-1 block text-sm font-semibold">Department</label><input id="department" name="department" className="input-field" value={form.department} onChange={onChange} /></div>
+          <div><label htmlFor="designation" className="mb-1 block text-sm font-semibold">Designation</label><input id="designation" name="designation" className="input-field" value={form.designation} onChange={onChange} /></div>
+          <div><label htmlFor="employment_status" className="mb-1 block text-sm font-semibold">Employment Status</label><select id="employment_status" name="employment_status" className="input-field" value={form.employment_status} onChange={onChange}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
           {accountStatus === "ACTIVE" && (
             <div>
               <label htmlFor="password" className="mb-1 block text-sm font-semibold">New Password (optional)</label>
