@@ -2,8 +2,8 @@
 Pydantic Schemas for SYS AI Lecturer System
 """
 
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Any, Dict
+from pydantic import BaseModel, EmailStr, Field, SecretStr
+from typing import Optional, List, Any, Dict, Literal
 from datetime import datetime
 
 # =========================
@@ -16,22 +16,15 @@ class UserBase(BaseModel):
     roll_number: Optional[str] = None
 
 class UserCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
-    role: str
-    roll_number: Optional[str] = None
-    employee_code: Optional[str] = None
-    password: str
+    role: Literal["student", "faculty"]
+    roll_number: Optional[str] = Field(None, max_length=50)
+    employee_code: Optional[str] = Field(None, max_length=50)
+    password: SecretStr
     photo: Optional[str] = None
 
-    @classmethod
-    def validate(cls, values):
-        role = values.get("role")
-        if role == "student" and not values.get("roll_number"):
-            raise ValueError("Roll number is mandatory for students.")
-        if role in ["admin", "faculty"] and not values.get("employee_code"):
-            raise ValueError("Employee code is mandatory for admin/faculty.")
-        return values
+    model_config = {"extra": "forbid"}
 
 
 class UserOut(BaseModel):

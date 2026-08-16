@@ -15,10 +15,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient  # noqa: E402
+from tests.auth_helpers import ProtectedUserFactory  # noqa: E402
 from app.main import app  # noqa: E402
 
 
 client = TestClient(app)
+_users = ProtectedUserFactory(client, "P007")
 
 
 def _unique_email(prefix: str) -> str:
@@ -26,22 +28,7 @@ def _unique_email(prefix: str) -> str:
 
 
 def _register_and_login(role: str, extra: dict) -> str:
-    email = _unique_email(role)
-    payload = {
-        "name": f"P007 {role}",
-        "email": email,
-        "role": role,
-        "password": "TestPass123!",
-        **extra,
-    }
-    reg = client.post("/auth/register", json=payload)
-    assert reg.status_code == 201, reg.text
-    login = client.post(
-        "/auth/login",
-        data={"username": email, "password": "TestPass123!"},
-    )
-    assert login.status_code == 200, login.text
-    return login.json()["access_token"]
+    return _users.create(role, extra).token
 
 
 def _auth(token: str) -> dict:

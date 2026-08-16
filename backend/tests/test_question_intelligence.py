@@ -11,9 +11,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient
+from tests.auth_helpers import ProtectedUserFactory
 from app.main import app
 
 client = TestClient(app)
+_users = ProtectedUserFactory(client, "P010")
 
 
 def _email(p: str) -> str:
@@ -21,15 +23,8 @@ def _email(p: str) -> str:
 
 
 def _reg(role: str, extra: dict):
-    email = _email(role)
-    r = client.post(
-        "/auth/register",
-        json={"name": f"P010 {role}", "email": email, "role": role, "password": "TestPass123!", **extra},
-    )
-    assert r.status_code == 201, r.text
-    l = client.post("/auth/login", data={"username": email, "password": "TestPass123!"})
-    assert l.status_code == 200, l.text
-    return l.json()["access_token"], r.json()["id"]
+    identity = _users.create(role, extra)
+    return identity.token, identity.user_id
 
 
 def H(t):
