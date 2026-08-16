@@ -9,6 +9,7 @@ from typing import List
 
 from app import models, schemas, database, utils
 from app.routes.auth import require_roles
+from app.services import authentication as auth_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 _admin = require_roles("admin")
@@ -23,7 +24,7 @@ def _coordinator_out(row: models.FacultyCourseAssignment) -> schemas.CourseCoord
         id=row.id,
         faculty_id=row.faculty_id,
         faculty_name=row.faculty.name if row.faculty else "",
-        faculty_email=row.faculty.email if row.faculty else "unknown@example.com",
+        faculty_email=(row.faculty.email or row.faculty.institutional_email) if row.faculty else None,
         course_id=row.course_id,
         course_title=row.course.title if row.course else "",
         assigned_at=row.assigned_at,
@@ -35,7 +36,7 @@ def _expert_out(row: models.SubjectExpertAssignment) -> schemas.SubjectExpertOut
         id=row.id,
         faculty_id=row.faculty_id,
         faculty_name=row.faculty.name if row.faculty else "",
-        faculty_email=row.faculty.email if row.faculty else "unknown@example.com",
+        faculty_email=(row.faculty.email or row.faculty.institutional_email) if row.faculty else None,
         subject_id=row.subject_id,
         subject_name=row.subject.name if row.subject else "",
         assigned_at=row.assigned_at,
@@ -46,6 +47,63 @@ def _get_role_user(db: Session, user_id: int, role: str) -> models.User:
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user or (user.role or "").lower() != role:
         raise HTTPException(status_code=404, detail=f"{role.capitalize()} not found")
+    return user
+
+
+@router.post("/users/provision", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
+def provision_user(
+    payload: schemas.UserCreate,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(_admin),
+):
+    """Explicit administrator-only immediate account provisioning."""
+
+    return auth_service.provision_active_user(
+        db,
+        name=payload.name,
+        email=str(payload.email),
+        role=payload.role,
+        password=payload.password.get_secret_value(),
+        roll_number=payload.roll_number,
+        employee_code=payload.employee_code,
+        mobile_number=payload.mobile_number,
+    )
+
+
+@router.post("/users/{user_id}/disable", response_model=schemas.UserOut)
+def disable_user_account(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    current_admin: models.User = Depends(_admin),
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_admin.id:
+        raise HTTPException(status_code=409, detail="Administrators cannot disable their own account")
+    user.account_status = auth_service.ACCOUNT_DISABLED
+    user.session_version = (user.session_version or 1) + 1
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/users/{user_id}/enable", response_model=schemas.UserOut)
+def enable_user_account(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(_admin),
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.account_status = (
+        auth_service.ACCOUNT_ACTIVE
+        if utils.is_usable_password_hash(user.hashed_password)
+        else auth_service.ACCOUNT_PENDING
+    )
+    db.commit()
+    db.refresh(user)
     return user
 
 
@@ -82,16 +140,28 @@ def create_student(
 ):
     if not payload.roll_number:
         raise HTTPException(status_code=422, detail="roll_number is required for students")
-    if db.query(models.User).filter(models.User.email == payload.email).first():
-        raise HTTPException(status_code=409, detail="Email already registered")
+    roll_number = auth_service.normalize_institutional_id(payload.roll_number)
+    if db.query(models.User).filter(models.User.roll_number == roll_number).first():
+        raise HTTPException(status_code=409, detail="Roll number already exists")
+    try:
+        institutional_email = auth_service.normalize_email(str(payload.email)) if payload.email else None
+        institutional_mobile = auth_service.normalize_mobile(payload.mobile_number) if payload.mobile_number else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     user = models.User(
         name=payload.name,
-        email=payload.email,
-        hashed_password=utils.hash_password(payload.password),
+        email=None,
+        institutional_email=institutional_email,
+        institutional_mobile=institutional_mobile,
+        hashed_password=None,
         role="student",
-        roll_number=payload.roll_number,
+        roll_number=roll_number,
         photo_url=payload.photo_url,
         is_active=True,
+        account_status=auth_service.ACCOUNT_PENDING,
+        email_verified=False,
+        mobile_verified=False,
+        mobile_is_personal=payload.mobile_is_personal,
     )
     db.add(user)
     db.commit()
@@ -107,15 +177,35 @@ def update_student(
     _: models.User = Depends(_admin),
 ):
     user = _get_role_user(db, student_id, "student")
+    was_active = user.is_active
     data = payload.model_dump(exclude_unset=True)
     password = data.pop("password", None)
-    if "email" in data and data["email"] != user.email:
-        if db.query(models.User).filter(models.User.email == data["email"]).first():
-            raise HTTPException(status_code=409, detail="Email already registered")
+    mobile = data.pop("mobile_number", None)
+    email = data.pop("email", None)
+    if email is not None:
+        normalized_email = auth_service.normalize_email(str(email))
+        if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_email != user.email:
+            raise HTTPException(status_code=409, detail="Verified email changes require account verification")
+        user.institutional_email = normalized_email
+    if mobile is not None:
+        normalized_mobile = auth_service.normalize_mobile(mobile)
+        if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_mobile != user.mobile_number:
+            raise HTTPException(status_code=409, detail="Verified mobile changes require account verification")
+        user.institutional_mobile = normalized_mobile
     for key, value in data.items():
         setattr(user, key, value)
+    if was_active is True and user.is_active is False:
+        user.session_version = (user.session_version or 1) + 1
     if password:
-        user.hashed_password = utils.hash_password(password)
+        if user.account_status != auth_service.ACCOUNT_ACTIVE:
+            raise HTTPException(status_code=409, detail="Pending accounts must complete controlled registration")
+        secret = password.get_secret_value()
+        try:
+            utils.validate_password(secret)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        user.hashed_password = utils.hash_password(secret)
+        user.session_version = (user.session_version or 1) + 1
     db.commit()
     db.refresh(user)
     return user
@@ -129,6 +219,7 @@ def deactivate_student(
 ):
     user = _get_role_user(db, student_id, "student")
     user.is_active = False
+    user.session_version = (user.session_version or 1) + 1
     db.commit()
     db.refresh(user)
     return user
@@ -195,16 +286,28 @@ def create_faculty(
 ):
     if not payload.employee_code:
         raise HTTPException(status_code=422, detail="employee_code is required for faculty")
-    if db.query(models.User).filter(models.User.email == payload.email).first():
-        raise HTTPException(status_code=409, detail="Email already registered")
+    employee_code = auth_service.normalize_institutional_id(payload.employee_code)
+    if db.query(models.User).filter(models.User.employee_code == employee_code).first():
+        raise HTTPException(status_code=409, detail="Employee code already exists")
+    try:
+        institutional_email = auth_service.normalize_email(str(payload.email)) if payload.email else None
+        institutional_mobile = auth_service.normalize_mobile(payload.mobile_number) if payload.mobile_number else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     user = models.User(
         name=payload.name,
-        email=payload.email,
-        hashed_password=utils.hash_password(payload.password),
+        email=None,
+        institutional_email=institutional_email,
+        institutional_mobile=institutional_mobile,
+        hashed_password=None,
         role="faculty",
-        employee_code=payload.employee_code,
+        employee_code=employee_code,
         photo_url=payload.photo_url,
         is_active=True,
+        account_status=auth_service.ACCOUNT_PENDING,
+        email_verified=False,
+        mobile_verified=False,
+        mobile_is_personal=payload.mobile_is_personal,
     )
     db.add(user)
     db.commit()
@@ -220,15 +323,35 @@ def update_faculty(
     _: models.User = Depends(_admin),
 ):
     user = _get_role_user(db, faculty_id, "faculty")
+    was_active = user.is_active
     data = payload.model_dump(exclude_unset=True)
     password = data.pop("password", None)
-    if "email" in data and data["email"] != user.email:
-        if db.query(models.User).filter(models.User.email == data["email"]).first():
-            raise HTTPException(status_code=409, detail="Email already registered")
+    mobile = data.pop("mobile_number", None)
+    email = data.pop("email", None)
+    if email is not None:
+        normalized_email = auth_service.normalize_email(str(email))
+        if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_email != user.email:
+            raise HTTPException(status_code=409, detail="Verified email changes require account verification")
+        user.institutional_email = normalized_email
+    if mobile is not None:
+        normalized_mobile = auth_service.normalize_mobile(mobile)
+        if user.account_status == auth_service.ACCOUNT_ACTIVE and normalized_mobile != user.mobile_number:
+            raise HTTPException(status_code=409, detail="Verified mobile changes require account verification")
+        user.institutional_mobile = normalized_mobile
     for key, value in data.items():
         setattr(user, key, value)
+    if was_active is True and user.is_active is False:
+        user.session_version = (user.session_version or 1) + 1
     if password:
-        user.hashed_password = utils.hash_password(password)
+        if user.account_status != auth_service.ACCOUNT_ACTIVE:
+            raise HTTPException(status_code=409, detail="Pending accounts must complete controlled registration")
+        secret = password.get_secret_value()
+        try:
+            utils.validate_password(secret)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        user.hashed_password = utils.hash_password(secret)
+        user.session_version = (user.session_version or 1) + 1
     db.commit()
     db.refresh(user)
     return user
@@ -242,6 +365,7 @@ def deactivate_faculty(
 ):
     user = _get_role_user(db, faculty_id, "faculty")
     user.is_active = False
+    user.session_version = (user.session_version or 1) + 1
     db.commit()
     db.refresh(user)
     return user

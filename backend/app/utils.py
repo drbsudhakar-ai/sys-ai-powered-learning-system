@@ -11,7 +11,7 @@ SECRET_KEY and token lifetime come from app.config.settings (environment).
 
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 
@@ -26,7 +26,21 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against its hash."""
+    if not is_usable_password_hash(hashed_password):
+        return False
     return pwd_context.verify(plain_password, hashed_password)
+
+
+def is_usable_password_hash(hashed_password: str | None) -> bool:
+    return bool(hashed_password and pwd_context.identify(hashed_password))
+
+
+def validate_password(password: str, confirmation: str | None = None) -> None:
+    """Validate a password without returning or logging the secret value."""
+    if confirmation is not None and password != confirmation:
+        raise ValueError("Passwords do not match")
+    if len(password) < 8 or len(password.encode("utf-8")) > 72:
+        raise ValueError("Password does not meet security requirements")
 
 
 # =========================
@@ -39,7 +53,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

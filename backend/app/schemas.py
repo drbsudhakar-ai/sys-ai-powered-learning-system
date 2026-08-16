@@ -11,7 +11,7 @@ from datetime import datetime
 # =========================
 class UserBase(BaseModel):
     name: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     role: str = "student"
     roll_number: Optional[str] = None
 
@@ -21,6 +21,7 @@ class UserCreate(BaseModel):
     role: Literal["student", "faculty"]
     roll_number: Optional[str] = Field(None, max_length=50)
     employee_code: Optional[str] = Field(None, max_length=50)
+    mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
     password: SecretStr
     photo: Optional[str] = None
 
@@ -30,12 +31,19 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     name: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    institutional_email: Optional[EmailStr] = None
+    institutional_mobile: Optional[str] = None
+    mobile_number: Optional[str] = None
+    email_verified: bool = False
+    mobile_verified: bool = False
+    mobile_is_personal: bool = True
     role: str
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     photo_url: Optional[str] = None
     is_active: bool = True
+    account_status: str = "PENDING_ACTIVATION"
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -45,8 +53,9 @@ class UserOut(BaseModel):
 
 class AdminUserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    email: EmailStr
-    password: str = Field(..., min_length=6)
+    email: Optional[EmailStr] = None
+    mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
+    mobile_is_personal: bool = True
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     photo_url: Optional[str] = None
@@ -55,18 +64,86 @@ class AdminUserCreate(BaseModel):
 class AdminUserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
+    mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
+    mobile_is_personal: Optional[bool] = None
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     photo_url: Optional[str] = None
     is_active: Optional[bool] = None
-    password: Optional[str] = Field(None, min_length=6)
+    password: Optional[SecretStr] = None
+
+
+class ActivationStartRequest(BaseModel):
+    role: Literal["student", "faculty"]
+    institutional_id: str = Field(..., min_length=1, max_length=50)
+    channel: Literal["email", "mobile"]
+
+    model_config = {"extra": "forbid"}
+
+
+class ChallengeStartResponse(BaseModel):
+    challenge_id: str
+    message: str
+
+
+class OtpVerifyRequest(BaseModel):
+    challenge_id: str = Field(..., min_length=20, max_length=64)
+    code: str = Field(..., pattern=r"^\d{6}$")
+
+    model_config = {"extra": "forbid"}
+
+
+class AuthorizationResponse(BaseModel):
+    authorization: str
+
+
+class ActivationContactRequest(BaseModel):
+    action: Literal["send", "verify"]
+    ownership_authorization: str = Field(..., min_length=20, max_length=200)
+    contact_type: Literal["email", "mobile"]
+    contact_value: Optional[str] = Field(None, min_length=3, max_length=255)
+    challenge_id: Optional[str] = Field(None, min_length=20, max_length=64)
+    code: Optional[str] = Field(None, pattern=r"^\d{6}$")
+
+    model_config = {"extra": "forbid"}
+
+
+class ActivationCompleteRequest(BaseModel):
+    ownership_authorization: str = Field(..., min_length=20, max_length=200)
+    email: EmailStr
+    email_authorization: str = Field(..., min_length=20, max_length=200)
+    mobile_number: str = Field(..., min_length=8, max_length=20)
+    mobile_authorization: str = Field(..., min_length=20, max_length=200)
+    password: SecretStr
+    confirm_password: SecretStr
+
+    model_config = {"extra": "forbid"}
+
+
+class AuthMessageResponse(BaseModel):
+    message: str
+
+
+class PasswordResetStartRequest(BaseModel):
+    identifier: str = Field(..., min_length=1, max_length=255)
+    channel: Literal["email", "mobile"]
+
+    model_config = {"extra": "forbid"}
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    reset_authorization: str = Field(..., min_length=20, max_length=200)
+    password: SecretStr
+    confirm_password: SecretStr
+
+    model_config = {"extra": "forbid"}
 
 
 class CourseCoordinatorOut(BaseModel):
     id: int
     faculty_id: int
     faculty_name: str
-    faculty_email: EmailStr
+    faculty_email: Optional[EmailStr] = None
     course_id: int
     course_title: str
     assigned_at: Optional[datetime] = None
@@ -102,7 +179,7 @@ class SubjectExpertOut(BaseModel):
     id: int
     faculty_id: int
     faculty_name: str
-    faculty_email: EmailStr
+    faculty_email: Optional[EmailStr] = None
     subject_id: int
     subject_name: str
     assigned_at: Optional[datetime] = None

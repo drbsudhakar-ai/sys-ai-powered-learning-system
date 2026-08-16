@@ -55,11 +55,12 @@ class AdminAcademicTests(unittest.TestCase):
             json={
                 "name": "Stu One",
                 "email": _email("stu"),
-                "password": "TestPass123!",
                 "roll_number": "R100",
             },
         )
         self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(created.json()["account_status"], "PENDING_ACTIVATION")
+        self.assertIsNone(created.json()["email"])
         sid = created.json()["id"]
         listed = client.get("/admin/students", headers=_auth(self.admin))
         self.assertEqual(listed.status_code, 200)
@@ -82,11 +83,12 @@ class AdminAcademicTests(unittest.TestCase):
             json={
                 "name": "Fac One",
                 "email": _email("fac"),
-                "password": "TestPass123!",
                 "employee_code": "E100",
             },
         )
         self.assertEqual(fac.status_code, 201, fac.text)
+        self.assertEqual(fac.json()["account_status"], "PENDING_ACTIVATION")
+        self.assertIsNone(fac.json()["email"])
         fid = fac.json()["id"]
 
         course = client.post(

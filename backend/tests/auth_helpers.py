@@ -48,7 +48,7 @@ class ProtectedUserFactory:
             **(extra or {}),
         }
         response = self.client.post(
-            "/auth/register",
+            "/admin/users/provision",
             headers=self._authorization(self._admin.token),
             json=payload,
         )
@@ -62,10 +62,14 @@ class ProtectedUserFactory:
             admin = models.User(
                 name=f"{self.prefix} admin",
                 email=email,
+                institutional_email=email,
+                email_verified=True,
                 hashed_password=utils.hash_password(_TEST_PASSWORD),
                 role="admin",
                 employee_code=f"{self.prefix}-{uuid.uuid4().hex[:10]}",
                 is_active=True,
+                account_status="ACTIVE",
+                session_version=1,
             )
             db.add(admin)
             db.commit()

@@ -31,13 +31,27 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=True)
+    institutional_email = Column(String(255), nullable=True)
+    institutional_mobile = Column(String(20), nullable=True)
+    mobile_number = Column(String(20), unique=True, index=True, nullable=True)
+    email_verified = Column(Boolean, nullable=False, server_default="false", default=True)
+    mobile_verified = Column(Boolean, nullable=False, server_default="false", default=False)
+    mobile_is_personal = Column(Boolean, nullable=False, server_default="true", default=True)
+    hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False)  # "student", "faculty", "admin"
-    roll_number = Column(String(50), nullable=True)
-    employee_code = Column(String(50), nullable=True)
+    roll_number = Column(String(50), unique=True, index=True, nullable=True)
+    employee_code = Column(String(50), unique=True, index=True, nullable=True)
     photo_url = Column(String(255), nullable=True)
     is_active = Column(Boolean, nullable=False, server_default="true", default=True)
+    account_status = Column(
+        String(32),
+        nullable=False,
+        server_default="PENDING_ACTIVATION",
+        default="ACTIVE",
+    )
+    session_version = Column(Integer, nullable=False, server_default="1", default=1)
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -47,6 +61,33 @@ class User(Base):
     subject_expert_assignments = relationship("SubjectExpertAssignment", back_populates="faculty")
     courses = relationship("Course", back_populates="created_by_user")
     assessments = relationship("Assessment", back_populates="created_by_user")
+
+
+class AuthChallenge(Base):
+    """Hashed, short-lived OTP and restricted authorization state."""
+
+    __tablename__ = "auth_challenges"
+
+    id = Column(String(64), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    purpose = Column(String(50), nullable=False, index=True)
+    channel = Column(String(20), nullable=False)
+    subject_hash = Column(String(64), nullable=False, index=True)
+    contact_hash = Column(String(64), nullable=True)
+    otp_hash = Column(String(64), nullable=True)
+    status = Column(String(24), nullable=False, server_default="PENDING", default="PENDING")
+    failed_attempts = Column(Integer, nullable=False, server_default="0", default=0)
+    send_count = Column(Integer, nullable=False, server_default="1", default=1)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    resend_available_at = Column(DateTime(timezone=True), nullable=False)
+    authorization_hash = Column(String(64), nullable=True)
+    authorization_expires_at = Column(DateTime(timezone=True), nullable=True)
+    authorization_used_at = Column(DateTime(timezone=True), nullable=True)
+    request_ip_hash = Column(String(64), nullable=False, index=True)
+    delivery_status = Column(String(24), nullable=False, server_default="PENDING", default="PENDING")
+    failure_reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 # =========================

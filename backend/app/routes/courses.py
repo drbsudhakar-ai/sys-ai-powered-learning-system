@@ -68,7 +68,7 @@ def _course_out(course: models.Course, db: Session) -> schemas.CourseOut:
                 id=row.id,
                 faculty_id=row.faculty_id,
                 faculty_name=faculty.name if faculty else "",
-                faculty_email=faculty.email if faculty else "unknown@example.com",
+                faculty_email=(faculty.email or faculty.institutional_email) if faculty else None,
                 course_id=row.course_id,
                 course_title=course.title,
                 assigned_at=row.assigned_at,
