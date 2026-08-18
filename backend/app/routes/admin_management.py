@@ -633,6 +633,7 @@ def operations_summary(
     recent_sessions = db.query(models.LearningSession).order_by(models.LearningSession.created_at.desc(), models.LearningSession.id.desc()).limit(4).all()
     unread_notifications = db.query(models.NotificationDelivery).filter(
         models.NotificationDelivery.user_id == actor.id,
+        models.NotificationDelivery.channel == "IN_APP",
         models.NotificationDelivery.is_read.is_(False),
     ).count()
 

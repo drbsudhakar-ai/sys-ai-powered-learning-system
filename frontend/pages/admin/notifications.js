@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AdminShell from "../../components/admin/AdminShell";
+import BrandedState from "../../components/admin/BrandedState";
+import useAdminAccess from "../../components/admin/useAdminAccess";
 import {
   createNotificationRecipient,
   getApiErrorMessage,
-  getMe,
+  getInboxUnreadCount,
   listNotificationRecipients,
   listNotifications,
   retryNotification,
   updateNotificationRecipient,
 } from "../../src/api";
-import { clearSession, getToken, isAdminRole, redirectToLogin } from "../../src/auth";
 
 const EVENTS = [
   "ASSESSMENT_PUBLISHED",
@@ -20,8 +22,10 @@ const EVENTS = [
 ];
 
 export default function NotificationsAdminPage() {
+  const access = useAdminAccess();
   const [recipients, setRecipients] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [unread, setUnread] = useState(0);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -33,29 +37,20 @@ export default function NotificationsAdminPage() {
   });
 
   const load = async () => {
-    const [r, n] = await Promise.all([listNotificationRecipients(), listNotifications()]);
+    const [r, n, c] = await Promise.all([
+      listNotificationRecipients(),
+      listNotifications(),
+      getInboxUnreadCount(),
+    ]);
     setRecipients(r.data || []);
     setNotes(n.data || []);
+    setUnread(c.data?.unread || 0);
   };
 
   useEffect(() => {
-    (async () => {
-      if (!getToken()) return redirectToLogin();
-      try {
-        const me = await getMe();
-        if (!isAdminRole(me.data.role)) {
-          setError("Admin access required.");
-          return;
-        }
-        await load();
-      } catch (err) {
-        if (err.response?.status === 401) {
-          clearSession();
-          redirectToLogin();
-        } else setError(getApiErrorMessage(err));
-      }
-    })();
-  }, []);
+    if (access.status !== "ready") return;
+    load().catch((err) => setError(getApiErrorMessage(err)));
+  }, [access.status]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -76,8 +71,23 @@ export default function NotificationsAdminPage() {
     }
   };
 
+  if (access.status === "checking") {
+    return <BrandedState title="Loading notification administration" message="Verifying administrator access and preparing notification configuration." />;
+  }
+
+  if (access.status !== "ready") {
+    return <BrandedState type="error" title="Notification administration unavailable" message={access.error || "Administrator access could not be verified."} actionHref="/admin-dashboard" actionLabel="Back to Operations Overview" />;
+  }
+
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8">
+    <AdminShell
+      user={access.user}
+      unreadNotifications={unread}
+      pageTitle="Notification Configuration"
+      breadcrumb="Communication & Reports"
+      scopeLabel={access.user?.role === "super_admin" ? "Platform-wide" : access.user?.college || "Institution scope"}
+    >
+      <div className="mx-auto w-full max-w-6xl px-4 py-8">
       <p className="sys-tagline !text-left !text-base">Admin</p>
       <h1 className="text-2xl font-bold text-[var(--sys-blue)]">Notification Configuration</h1>
       {error && <p className="sys-card mt-4 text-red-600" role="alert">{error}</p>}
@@ -210,6 +220,9 @@ export default function NotificationsAdminPage() {
       <p className="mt-6 text-sm">
         <Link href="/admin-dashboard" className="text-[var(--sys-blue)] no-underline hover:underline">← Admin Dashboard</Link>
       </p>
-    </div>
+      </div>
+    </AdminShell>
   );
 }
+
+NotificationsAdminPage.getLayout = (page) => page;
