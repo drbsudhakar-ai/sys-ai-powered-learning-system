@@ -1,15 +1,16 @@
-// pages/_document.js
+// frontend/pages/_document.js
 import { Html, Head, Main, NextScript } from 'next/document';
 
 export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Google Fonts */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Poppins:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+        {/* SYS Branding Stylesheet */}
+        <link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" />
+
+        {/* SYS Favicon + Theme */}
+        <link rel="icon" href="/branding/sys-v2/logos/SYS_Header_Logo_Dark.png" />
+        <meta name="theme-color" content="#0A192F" />
       </Head>
       <body>
         <Main />

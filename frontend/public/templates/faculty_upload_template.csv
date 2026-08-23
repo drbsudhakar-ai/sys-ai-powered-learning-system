@@ -1,0 +1,3 @@
+employee_code,name,email,mobile_number,college,department,designation,employment_status
+F001,Alice Johnson,alice@example.com,9876543220,Engineering College,Computer Science,Professor,active
+F002,Bob Williams,bob@example.com,9876543221,Science College,Mathematics,Lecturer,inactive

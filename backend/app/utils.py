@@ -1,18 +1,6 @@
-"""
-Utility Functions
------------------
-SYS AI Lecturer System
-Includes:
- - Password hashing & verification
- - JWT token creation & decoding
-
-SECRET_KEY and token lifetime come from app.config.settings (environment).
-"""
-
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
-
 from app.config import settings
 
 # =========================
@@ -21,34 +9,35 @@ from app.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    """Hash a plain password using bcrypt."""
+    """Hash a plain password using bcrypt (truncate to 72 bytes)."""
+    password = password[:72]  # bcrypt limit
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its hash."""
+    """Verify a plain password against its hash (truncate to 72 bytes)."""
     if not is_usable_password_hash(hashed_password):
         return False
+    plain_password = plain_password[:72]  # bcrypt limit
     return pwd_context.verify(plain_password, hashed_password)
-
 
 def is_usable_password_hash(hashed_password: str | None) -> bool:
     return bool(hashed_password and pwd_context.identify(hashed_password))
-
 
 def validate_password(password: str, confirmation: str | None = None) -> None:
     """Validate a password without returning or logging the secret value."""
     if confirmation is not None and password != confirmation:
         raise ValueError("Passwords do not match")
-    if len(password) < 8 or len(password.encode("utf-8")) > 72:
-        raise ValueError("Password does not meet security requirements")
-
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password cannot exceed 72 bytes (bcrypt limit)")
 
 # =========================
 # JWT Token Management
 # =========================
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""

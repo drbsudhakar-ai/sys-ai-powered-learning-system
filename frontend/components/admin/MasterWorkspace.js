@@ -2,6 +2,10 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import StudentBulkUploadModal from "./StudentBulkUploadModal";
+import FacultyBulkUploadModal from "./FacultyBulkUploadModal";
+
 import {
   AdjustmentsHorizontalIcon,
   ArrowDownTrayIcon,
@@ -218,6 +222,8 @@ export default function MasterWorkspace({ kind }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [auxiliary, setAuxiliary] = useState({ courses: [], subjects: [], available: true });
+  const [showStudentUpload, setShowStudentUpload] = useState(false);
+  const [showFacultyUpload, setShowFacultyUpload] = useState(false);
 
   useEffect(() => {
     if (router.isReady) setSearchInput(query.search);
@@ -368,15 +374,18 @@ export default function MasterWorkspace({ kind }) {
 
   return (
     <>
-      <Head><title>{config.singular} Master | SYS</title><meta name="description" content={`SYS ${config.singular.toLowerCase()} master management workspace.`} /><link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" /></Head>
+      <Head><title>{config.singular} Master Data| SYS</title><meta name="description" content={`SYS ${config.singular.toLowerCase()} master management workspace.`} /><link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" /></Head>
       <AdminShell user={access.user} unreadNotifications={summary?.unread_notifications || 0} pageTitle={`${config.singular} Master`} breadcrumb="People & Access" scopeLabel={summary?.scope_label}>
         <div className={styles.workspaceContent}>
           <section className={styles.pageHeading}>
-            <div><span>People & Access</span><h1>{config.singular} Master</h1><p>{config.description}</p></div>
+            <div><span>People & Access</span><h1>{config.singular} Master Data</h1><p>{config.description}</p></div>
             <div className={styles.headingActions}>
               <button type="button" className={styles.secondaryButton} onClick={() => setRefreshKey((value) => value + 1)} disabled={records.status === "loading"}><ArrowPathIcon aria-hidden="true" /> Refresh</button>
               <button type="button" className={styles.secondaryButton} onClick={exportCurrentView} disabled={exporting}><ArrowDownTrayIcon aria-hidden="true" /> {exporting ? "Exporting…" : "Export current view"}</button>
               <Link href={config.newHref} className={styles.primaryButton}><PlusIcon aria-hidden="true" /> Add individual</Link>
+              {kind === "student" && <button type="button" className={styles.primaryButton} onClick={() => setShowStudentUpload(true)}><PlusIcon aria-hidden="true" /> Upload students</button>}
+              {kind === "faculty" && <button type="button" className={styles.primaryButton} onClick={() => setShowFacultyUpload(true)}><PlusIcon aria-hidden="true" /> Upload faculty</button>}
+
             </div>
           </section>
 
@@ -475,6 +484,14 @@ export default function MasterWorkspace({ kind }) {
 
       <RecordDrawer kind={kind} record={preview} onClose={() => setPreview(null)} openerRef={previewOpenerRef} />
       <ConfirmDialog open={confirmOpen} title={`Confirm bulk ${confirmLabel}`} message={`Apply “${confirmLabel}” to ${selectedIds.length} selected ${selectedIds.length === 1 ? "record" : "records"}? Successful changes will be audited.`} busy={bulkBusy} onCancel={() => setConfirmOpen(false)} onConfirm={applyBulk} />
+      
+      {showStudentUpload && (
+        <StudentBulkUploadModal onClose={() => setShowStudentUpload(false)} />
+      )}
+      {showFacultyUpload && (
+        <FacultyBulkUploadModal onClose={() => setShowFacultyUpload(false)} />
+      )}
+
     </>
   );
 }

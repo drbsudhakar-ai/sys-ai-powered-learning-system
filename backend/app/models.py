@@ -63,6 +63,7 @@ class User(Base):
     roll_number = Column(String(50), index=True, nullable=True)
     employee_code = Column(String(50), index=True, nullable=True)
     college = Column(String(160), nullable=True, index=True)
+    academic_program = Column(String(160), nullable=True, index=True)
     department = Column(String(160), nullable=True, index=True)
     designation = Column(String(120), nullable=True, index=True)
     admission_year = Column(Integer, nullable=True, index=True)

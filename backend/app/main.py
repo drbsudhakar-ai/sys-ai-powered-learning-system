@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app import models, database
 from app.routes import auth, courses, assessments, resources, admin, admin_management, curriculum, reporting, question_bank, intelligence, attempts, analyzer, learning_sessions, remedial, mastery, analytics, learning_journey
+from app.routes import students, faculty
+from app.routes import auth as auth_routes
 
 # Create DB tables (Alembic recommended for production migrations)
 models.Base.metadata.create_all(bind=database.engine)
@@ -23,8 +25,9 @@ app = FastAPI(
 # Middleware
 # =========================
 origins = [
-    "http://localhost:3000",   # React/Next.js frontend
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://192.168.31.253:3000",  # your LAN IP if you test on other devices
     "https://your-production-domain.com"
 ]
 
@@ -39,7 +42,7 @@ app.add_middleware(
 # =========================
 # Routers
 # =========================
-app.include_router(auth.router)
+app.include_router(auth_routes.router)
 app.include_router(courses.router)
 app.include_router(assessments.router)
 app.include_router(resources.router)
@@ -56,6 +59,8 @@ app.include_router(remedial.router)
 app.include_router(mastery.router)
 app.include_router(analytics.router)
 app.include_router(learning_journey.router)
+app.include_router(students.router)
+app.include_router(faculty.router)
 
 # =========================
 # Health Check
