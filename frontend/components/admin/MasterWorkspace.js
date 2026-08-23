@@ -486,10 +486,10 @@ export default function MasterWorkspace({ kind }) {
       <ConfirmDialog open={confirmOpen} title={`Confirm bulk ${confirmLabel}`} message={`Apply “${confirmLabel}” to ${selectedIds.length} selected ${selectedIds.length === 1 ? "record" : "records"}? Successful changes will be audited.`} busy={bulkBusy} onCancel={() => setConfirmOpen(false)} onConfirm={applyBulk} />
       
       {showStudentUpload && (
-        <StudentBulkUploadModal onClose={() => setShowStudentUpload(false)} />
+        <StudentBulkUploadModal onClose={() => setShowStudentUpload(false)} onUploaded={() => setRefreshKey((value) => value + 1)} />
       )}
       {showFacultyUpload && (
-        <FacultyBulkUploadModal onClose={() => setShowFacultyUpload(false)} />
+        <FacultyBulkUploadModal onClose={() => setShowFacultyUpload(false)} onUploaded={() => setRefreshKey((value) => value + 1)} />
       )}
 
     </>

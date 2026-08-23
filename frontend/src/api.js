@@ -64,6 +64,7 @@ export const adminListStudentMaster = (params, config) =>
   API.get("/admin/master/students", { ...config, params });
 export const adminBulkStudentStatus = (data) =>
   API.post("/admin/master/students/bulk-status", data);
+export const adminBulkUploadStudents = (records) => API.post("/students/bulk", records);
 export const adminExportStudentMaster = (params) =>
   API.get("/admin/master/students/export", { params, responseType: "blob" });
 
@@ -78,6 +79,7 @@ export const adminListFacultyMaster = (params, config) =>
   API.get("/admin/master/faculty", { ...config, params });
 export const adminBulkFacultyStatus = (data) =>
   API.post("/admin/master/faculty/bulk-status", data);
+export const adminBulkUploadFaculty = (records) => API.post("/faculty/bulk", records);
 export const adminBulkFacultyAssignment = (data) =>
   API.post("/admin/master/faculty/bulk-assignment", data);
 export const adminExportFacultyMaster = (params) =>

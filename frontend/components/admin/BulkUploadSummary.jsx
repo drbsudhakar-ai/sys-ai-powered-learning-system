@@ -1,29 +1,39 @@
-export default function BulkUploadSummary({ result, onClose }) {
-    if (!result) {
-      return (
-        <div className="p-6">
-          <h2 className="text-xl font-bold mb-4">Bulk Upload Summary</h2>
-          <p className="text-red-600">No result data available.</p>
-          <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">
-            Close
-          </button>
-        </div>
-      );
-    }
-  
-    return (
-      <div className="p-6">
-        <h2 className="text-xl font-bold mb-4">Bulk Upload Summary</h2>
-        <p><strong>Status:</strong> {result.status ?? "Unknown"}</p>
-        <p><strong>Total Uploaded:</strong> {result.log_entry?.total_uploaded ?? 0}</p>
-        <p><strong>Inserted:</strong> {result.inserted ?? 0}</p>
-        <p><strong>Skipped:</strong> {result.skipped ?? 0}</p>
-        <p><strong>Invalid:</strong> {result.invalid ?? 0}</p>
-  
-        <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">
-          Close
-        </button>
+import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import styles from "./MasterBulkUploadModal.module.css";
+
+export default function BulkUploadSummary({ result, kind, onClose }) {
+  const inserted = Number(result?.inserted || 0);
+  const skipped = Number(result?.skipped || 0);
+  const invalid = Number(result?.invalid || 0);
+  const total = Number(result?.log_entry?.total_uploaded || inserted + skipped + invalid);
+  const complete = inserted > 0;
+  const Icon = complete ? CheckCircleIcon : ExclamationTriangleIcon;
+
+  return (
+    <section className={styles.summary} aria-live="polite">
+      <div className={`${styles.summaryIcon} ${complete ? styles.summarySuccess : styles.summaryWarning}`}>
+        <Icon aria-hidden="true" />
       </div>
-    );
-  }
-  
+      <h3>{complete ? `${kind === "faculty" ? "Faculty" : "Student"} master updated` : "No new records imported"}</h3>
+      <p>
+        {complete
+          ? "Imported master records are ready for secure first-time registration."
+          : "Review the skipped or invalid records before trying another upload."}
+      </p>
+      <div className={styles.summaryMetrics}>
+        {[ ["Processed", total], ["Imported", inserted], ["Skipped", skipped], ["Invalid", invalid] ].map(([label, value]) => (
+          <div key={label}><strong>{value}</strong><span>{label}</span></div>
+        ))}
+      </div>
+      {result?.invalid_records?.length > 0 && (
+        <div className={styles.validationPanel} role="status">
+          <strong>Records requiring attention</strong>
+          <ul>{result.invalid_records.map((entry, index) => (
+            <li key={`${entry.row || index}-${entry.reason}`}>Row {entry.row || index + 2}: {entry.reason}</li>
+          ))}</ul>
+        </div>
+      )}
+      <button type="button" className={styles.primaryButton} onClick={onClose}>Return to master data</button>
+    </section>
+  );
+}
