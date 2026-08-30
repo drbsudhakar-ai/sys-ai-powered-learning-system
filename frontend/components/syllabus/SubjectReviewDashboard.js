@@ -17,7 +17,7 @@ const labels = {
   IN_REVIEW: "Under expert review",
   RETURNED: "Changes requested",
   RECOMMENDED: "Final approval pending",
-  APPROVED: "Finally approved",
+  APPROVED: "Syllabus finally approved",
   CANCELLED: "Request cancelled",
 };
 export default function SubjectReviewDashboard() {
@@ -49,7 +49,7 @@ export default function SubjectReviewDashboard() {
     task &&
     !expertMode &&
     task.status === "RECOMMENDED" &&
-    (role === "admin" || data?.can_manage),
+    data?.can_manage,
   );
   const visibleSubjects =
     expertMode && task
@@ -188,6 +188,20 @@ export default function SubjectReviewDashboard() {
     } finally {
       setBusy(false);
     }
+  }
+  async function courseGovernance(action) {
+    const comment = window.prompt(action === "confirm" ? "Record the Course Coordinator readiness confirmation:" : "Record why readiness is being reopened:");
+    if (!comment?.trim()) return;
+    setBusy(true); setError(""); setMessage("");
+    try { await API.post(`/admin/courses/${id}/coordinator-readiness`, { action, comment }); await refresh(); setMessage(action === "confirm" ? "Complete-course readiness confirmed for administrator approval." : "Course readiness reopened."); }
+    catch (e) { setError(getApiErrorMessage(e)); } finally { setBusy(false); }
+  }
+  async function approveAllEligible() {
+    const comment = window.prompt("Record the administrator bulk approval decision:");
+    if (!comment?.trim()) return;
+    setBusy(true); setError(""); setMessage("");
+    try { const response = await API.post(`/admin/courses/${id}/approve-all-eligible-subjects`, { comment }); await refresh(); setMessage(`${response.data.approved_count} eligible subjects approved; ${response.data.blocked_count} remain blocked.`); }
+    catch (e) { setError(getApiErrorMessage(e)); } finally { setBusy(false); }
   }
   function edit(key, field, value) {
     setNodes((old) =>
@@ -397,6 +411,7 @@ export default function SubjectReviewDashboard() {
                 ? "Subject-expert recommendation is separate from coordinator final approval."
                 : `${review.subjects.length} subjects · ${review.tasks.filter((t) => t.status === "APPROVED").length} finally approved · ${review.tasks.filter((t) => t.status === "RECOMMENDED").length} awaiting final approval`}
             </p>
+            {!expertMode && <div className={styles.notice}><strong>Course Coordinator readiness:</strong> {String(data.coordinator_readiness_status || "PENDING").replaceAll("_", " ")}<div className={styles.actions}>{role === "faculty" && data.can_manage && <button disabled={busy} onClick={() => courseGovernance(data.coordinator_readiness_status === "CONFIRMED" ? "reopen" : "confirm")}>{data.coordinator_readiness_status === "CONFIRMED" ? "Reopen course readiness" : "Confirm course readiness"}</button>}{data.can_final_approve && <button className={styles.primary} disabled={busy || data.coordinator_readiness_status !== "CONFIRMED"} onClick={approveAllEligible}>Approve all eligible subjects</button>}</div></div>}
             <p>
               {expertMode
                 ? "Review the assigned syllabus branch and record your recommendation below."
@@ -419,7 +434,9 @@ export default function SubjectReviewDashboard() {
                   <tr>
                     <th>Subject</th>
                     <th>Assigned subject expert</th>
-                    <th>Status</th>
+                    <th>Syllabus review status</th>
+                    <th>Weightage status</th>
+                    <th>Overall readiness</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -550,6 +567,8 @@ export default function SubjectReviewDashboard() {
                               ? "Review not requested"
                               : "Expert assignment required")}
                         </td>
+                        <td>{String(s.weightage?.status || "NOT_CONFIGURED").replaceAll("_", " ")}</td>
+                        <td>{t?.status === "APPROVED" && s.weightage?.status === "APPROVED" ? "Fully approved" : t?.status === "APPROVED" ? "Weightage pending" : s.weightage?.status === "APPROVED" ? "Syllabus approval pending" : "Not ready"}</td>
                         <td>
                           <div className={styles.actions}>
                             {(expertMode || !data.can_manage) &&
@@ -767,7 +786,7 @@ export default function SubjectReviewDashboard() {
                           />
                         </label>
                         <div className={styles.actions}>
-                          <button
+                          {data.can_final_approve && <button
                             className={styles.primary}
                             disabled={
                               busy ||
@@ -787,7 +806,7 @@ export default function SubjectReviewDashboard() {
                             }}
                           >
                             Finally approve subject
-                          </button>
+                          </button>}
                           <button
                             disabled={busy || !decision.trim() || data.archived}
                             onClick={() =>
@@ -801,8 +820,7 @@ export default function SubjectReviewDashboard() {
                         </div>
                         {task.reviewer_id === data.actor_id && (
                           <p>
-                            A different administrator or coordinator must grant
-                            final approval.
+                            A different administrator must grant final approval.
                           </p>
                         )}
                       </>

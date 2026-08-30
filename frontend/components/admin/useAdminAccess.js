@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { getMe } from "../../src/api";
 import { clearSession, getToken, isAdminRole, roleLandingPath } from "../../src/auth";
 
-export default function useAdminAccess() {
+export default function useAdminAccess({ allowFaculty = false } = {}) {
   const router = useRouter();
   const [state, setState] = useState({ status: "checking", user: null, error: "" });
 
@@ -31,7 +31,7 @@ export default function useAdminAccess() {
           await router.replace("/login?reason=unauthorized");
           return;
         }
-        if (!isAdminRole(account.role)) {
+        if (!isAdminRole(account.role) && !(allowFaculty && account.role === "faculty")) {
           await router.replace(roleLandingPath(account.role) || "/login?reason=unauthorized");
           return;
         }
@@ -60,7 +60,7 @@ export default function useAdminAccess() {
       active = false;
       controller.abort();
     };
-  }, [router, router.isReady]);
+  }, [allowFaculty, router, router.isReady]);
 
   return state;
 }

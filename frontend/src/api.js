@@ -228,6 +228,12 @@ export const getCourseAcademicWeightages = (courseId) =>
   API.get(`/admin/courses/${courseId}/weightages`);
 export const updateCourseAcademicWeightages = (courseId, payload) =>
   API.put(`/admin/courses/${courseId}/weightages`, payload);
+export const actOnWeightageGovernance = (courseId, subjectId, payload) =>
+  API.post(`/admin/courses/${courseId}/weightages/${subjectId}/governance`, payload);
+export const confirmCoordinatorReadiness = (courseId, payload) =>
+  API.post(`/admin/courses/${courseId}/coordinator-readiness`, payload);
+export const approveAllEligibleSubjects = (courseId, payload) =>
+  API.post(`/admin/courses/${courseId}/approve-all-eligible-subjects`, payload);
 export const adminCreateUnit = (data) => API.post("/admin/units", data);
 export const adminImportCourseSyllabus = (courseId, rows) =>
   API.post(`/admin/courses/${courseId}/syllabus/import`, { rows });

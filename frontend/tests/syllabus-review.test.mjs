@@ -83,7 +83,7 @@ test("dual-role faculty can explicitly open subject-expert mode", () => {
   assert.match(dashboard, /Subject Expert Review/);
   assert.match(dashboard, /data\.can_manage\s*&&\s*!expertMode/);
 });
-test("coordinator final approval opens in an accessible recommendation modal", () => {
+test("administrator final approval opens in an accessible recommendation modal", () => {
   const dashboard = fs.readFileSync(
     new URL(
       "../components/syllabus/SubjectReviewDashboard.js",
@@ -101,7 +101,8 @@ test("coordinator final approval opens in an accessible recommendation modal", (
   assert.match(dashboard, /Open expert recommendation/);
   assert.match(dashboard, /role=.*dialog/);
   assert.match(dashboard, /aria-modal/);
-  assert.match(dashboard, /role === "admin" \|\| data\?\.can_manage/);
+  assert.match(dashboard, /data\?\.can_manage/);
+  assert.match(dashboard, /data\.can_final_approve/);
   assert.match(dashboard, /Close expert recommendation/);
   assert.match(dashboard, /Finally approve subject/);
   assert.match(dashboard, /Return for changes/);

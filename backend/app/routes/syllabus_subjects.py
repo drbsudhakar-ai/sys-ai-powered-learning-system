@@ -49,8 +49,31 @@ def dashboard(course_id: int, db: Session = Depends(database.get_db), actor: mod
             history=[dict(action=a.action, at=a.created_at, details=a.details) for a in db.query(models.AdminAuditLog).filter_by(target_type='syllabus_review', target_id=row.id).order_by(models.AdminAuditLog.id) if manager or (a.details or {}).get('subject_key') in {t.subject_key for t in assigned}]))
     if not manager and not result: raise HTTPException(403, 'No assigned syllabus review')
     faculty = [f for f in db.query(models.User).filter(models.User.role == 'faculty').order_by(models.User.name, models.User.id) if assignable(f)] if manager else []
+    from app.academic_auth import is_admin
+    from app.routes.admin import _academic_weight_tree, _weightage_scope
+    live_ids = {t.live_subject_id for review_data in result for t in service.tasks(db, db.get(models.SyllabusReview, review_data['id'])) if t.reviewer_id == actor.id and t.live_subject_id}
+    if manager:
+        weight_tree = _academic_weight_tree(db, course_id, _weightage_scope(db, course_id, actor))
+        weight_by_subject = {item['id']: item.get('governance') for item in weight_tree['subjects']}
+    elif live_ids:
+        weight_tree = _academic_weight_tree(db, course_id, {'course': course, 'can_manage_course': False,
+            'subject_ids': live_ids, 'actor_role': str(actor.role or '').lower()})
+        weight_by_subject = {item['id']: item.get('governance') for item in weight_tree['subjects'] if item['id'] in live_ids}
+    else:
+        weight_by_subject = {}
+    for review_data in result:
+        for subject in review_data['subjects']:
+            live_id = int(subject['key'].split(':')[1]) if subject['key'].startswith('subject:') else None
+            subject['weightage'] = weight_by_subject.get(live_id) if live_id else {
+                'status': 'NOT_CONFIGURED', 'complete': False, 'version': 0,
+                'recommendation_comment': '', 'decision_comment': ''}
+    statuses = [subject['weightage']['status'] for review_data in result for subject in review_data['subjects']]
     return dict(course_title=course.title, course_code=course.programme_code, actor_id=actor.id,
         can_manage=manager, archived=course.publication_status == 'ARCHIVED', reviews=result,
+        can_final_approve=is_admin(actor), coordinator_readiness_status=course.coordinator_readiness_status,
+        governance_summary={'awaiting_recommendation': statuses.count('DRAFT') + statuses.count('NOT_CONFIGURED'),
+            'awaiting_final_approval': statuses.count('RECOMMENDED'), 'returned_for_changes': statuses.count('RETURNED'),
+            'weightages_finally_approved': statuses.count('APPROVED')},
         faculty=[dict(id=f.id, name=f.name, employee_code=f.employee_code, department=f.department,
                       account_status=f.account_status) for f in faculty], revision=course.syllabus_revision,
         revisions=[dict(number=v.number, approved_at=v.created_at, published_at=v.published_at, summary=v.summary) for v in db.query(models.SyllabusRevision).filter_by(course_id=course_id).order_by(models.SyllabusRevision.number.desc())] if manager else [])
@@ -119,21 +142,24 @@ def act(course_id: int, review_id: int, body: SubjectReviewAction, background: B
                 if not task.comment: raise HTTPException(422, 'Record your academic recommendation')
                 task.status = 'RECOMMENDED'; task.recommended_at = datetime.now(timezone.utc)
         else:
-            if not manager: raise HTTPException(403, 'Final decision requires admin or assigned course coordinator')
+            if not manager: raise HTTPException(403, 'Administrator or assigned Course Coordinator required')
             if actor.id == task.reviewer_id: raise HTTPException(403, 'Final approval must be by a different person from the subject reviewer')
             if task.status != 'RECOMMENDED': raise HTTPException(409, 'Expert recommendation is required first')
             if not body.comment.strip(): raise HTTPException(422, 'Record the final decision comment')
             task.decision_comment = body.comment.strip()
             if body.action == 'return': task.status = 'RETURNED'
             else:
-                desired = [n for n in row.proposed_nodes if n not in current] + task.proposed_nodes
-                core.validate_nodes(desired, row.base_nodes)
-                claim(db, row, row.version); row.proposed_nodes = desired
-                task.source_hash = core.fingerprint(task.proposed_nodes)
-                task.status = 'APPROVED'; task.approved_at = datetime.now(timezone.utc); task.approved_by = actor.id
+                from app.academic_auth import is_admin
+                if not is_admin(actor): raise HTTPException(403, 'Administrator final approval is required; Course Coordinators may return changes only')
+                # approve_task owns the task version increment, replacing the CAS increment above.
+                task.version -= 1
+                service.approve_task(db, actor, course, row, task, body.comment)
     core.audit(db, actor, row, 'subject_' + body.action, {'subject_key': task.subject_key, 'task_id': task.id,
         'status': task.status, 'comment': body.comment, 'reviewer_id': task.reviewer_id,
         'changes': core.changes(task.source_nodes or [], task.proposed_nodes or [])})
+    if body.action in {'assign', 'unassign', 'request', 'save', 'recommend', 'return'}:
+        course.coordinator_readiness_status = 'PENDING'
+        course.coordinator_confirmed_at = course.coordinator_confirmed_by = None
     recipients = [db.get(models.User, task.reviewer_id)] if body.action in {'request', 'return', 'approve'} else core.coordinators(db, course_id) + ([db.get(models.User, task.requested_by)] if task.requested_by else [])
     notification = None
     if body.action not in {'assign', 'unassign', 'save'}:

@@ -817,6 +817,21 @@ class AcademicWeightageGroupUpdate(BaseModel):
     items: List[AcademicWeightageItem] = Field(..., min_length=1, max_length=1000)
 
 
+class WeightageGovernanceAction(BaseModel):
+    action: Literal["recommend", "approve", "return"]
+    version: int = Field(..., ge=0)
+    comment: str = Field(..., min_length=1, max_length=2000)
+
+
+class CoordinatorReadinessAction(BaseModel):
+    action: Literal["confirm", "reopen"]
+    comment: str = Field(..., min_length=1, max_length=2000)
+
+
+class BulkSubjectApprovalRequest(BaseModel):
+    comment: str = Field(..., min_length=1, max_length=2000)
+
+
 class PriorityWeightsIn(BaseModel):
     w_historical_weightage: float = 0.25
     w_historical_frequency: float = 0.25

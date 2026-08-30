@@ -993,14 +993,14 @@ def _weightage_scope(db: Session, course_id: int, actor: models.User) -> dict:
         raise HTTPException(status_code=404, detail="Course not found")
     role = str(actor.role or "").lower()
     if role in {"admin", "super_admin"}:
-        return {"course": course, "can_manage_course": True, "subject_ids": None}
+        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role}
     coordinator = db.query(models.FacultyCourseAssignment.id).filter(models.FacultyCourseAssignment.course_id == course_id, models.FacultyCourseAssignment.faculty_id == actor.id).first()
     if coordinator:
-        return {"course": course, "can_manage_course": True, "subject_ids": None}
+        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role}
     subject_ids = {row[0] for row in db.query(models.SubjectExpertAssignment.subject_id).join(models.Subject, models.Subject.id == models.SubjectExpertAssignment.subject_id).filter(models.Subject.course_id == course_id, models.SubjectExpertAssignment.faculty_id == actor.id).all()}
     if not subject_ids:
         raise HTTPException(status_code=403, detail="Academic responsibility for this course is required")
-    return {"course": course, "can_manage_course": False, "subject_ids": subject_ids}
+    return {"course": course, "can_manage_course": False, "subject_ids": subject_ids, "actor_role": role}
 
 
 def _academic_weight_tree(db: Session, course_id: int, scope: dict) -> dict:
@@ -1016,11 +1016,19 @@ def _academic_weight_tree(db: Session, course_id: int, scope: dict) -> dict:
         editable = scope["can_manage_course"] or subject.id in (scope["subject_ids"] or set())
         visible.append({"id": subject.id, "name": subject.name, "weight_percent": subject_weights.get(subject.id), "editable": editable, "units": [{"id": unit.id, "name": unit.name, "sequence": unit.sequence, "weight_percent": unit_weights.get(unit.id), "topics": [{"id": topic.id, "name": topic.name, "weight_percent": topic_weights.get(topic.id), "subtopics": [{"id": subtopic.id, "name": subtopic.name, "weight_percent": subtopic_weights.get(subtopic.id)} for subtopic in sorted(topic.subtopics, key=lambda item: (item.sequence, item.name.lower()))]} for topic in sorted(unit.topics, key=lambda item: (item.sequence, item.name.lower()))]} for unit in sorted(subject.units, key=lambda item: (item.sequence, item.name.lower()))]})
     configured = {"subjects": len(subject_weights), "units": len(unit_weights), "topics": len(topic_weights), "subtopics": len(subtopic_weights)}
-    return {"course_id": course_id, "course_title": scope["course"].title, "can_manage_course": scope["can_manage_course"], "editable_subject_ids": None if scope["can_manage_course"] else sorted(scope["subject_ids"]), "configured": configured, "subjects": visible}
+    tree = {"course_id": course_id, "course_title": scope["course"].title, "can_manage_course": scope["can_manage_course"],
+        "actor_role": scope["actor_role"], "can_final_approve": scope["actor_role"] in {"admin", "super_admin"},
+        "editable_subject_ids": None if scope["can_manage_course"] else sorted(scope["subject_ids"]), "configured": configured, "subjects": visible}
+    from app.services import weightage_governance
+    for subject in visible:
+        subject["governance"] = weightage_governance.serialize(db, tree, subject)
+    tree["coordinator_readiness_status"] = scope["course"].coordinator_readiness_status
+    return tree
 
 
 def _publication_readiness(db: Session, course_id: int, scope: dict) -> dict:
     from app.services.syllabus_subjects import publication_ready
+    from app.services import weightage_governance
     tree = _academic_weight_tree(db, course_id, scope)
     course, subjects = scope["course"], tree["subjects"]
     coordinators = db.query(models.FacultyCourseAssignment).filter(models.FacultyCourseAssignment.course_id == course_id).all()
@@ -1032,8 +1040,10 @@ def _publication_readiness(db: Session, course_id: int, scope: dict) -> dict:
     hierarchy = bool(subjects) and all(subject["units"] and all(unit["topics"] for unit in subject["units"]) for subject in subjects)
     deeper = bool(subjects) and all(weighted(subject["units"]) and all(weighted(unit["topics"]) and all(not topic["subtopics"] or weighted(topic["subtopics"]) for topic in unit["topics"]) for unit in subject["units"]) for subject in subjects)
     checks = [
-        {"key": "syllabus_approval", "label": "All subjects finally approved", "complete": publication_ready(db, course), "detail": "Every subject needs expert recommendation and final approval; resolve pending drafts.", "href": f"/admin/courses/{course_id}/syllabus/reviews"},
-        {"key": "identity", "label": "Course identity", "complete": bool(course.title and course.programme_code), "detail": "Course title and code must be configured.", "href": f"/admin/courses/{course_id}/edit"},
+        {"key": "syllabus_approval", "label": "All subject syllabuses finally approved", "complete": publication_ready(db, course), "detail": "Every subject syllabus needs expert recommendation and administrator final approval.", "href": f"/admin/courses/{course_id}/syllabus/reviews"},
+        {"key": "weightage_approval", "label": "All subject weightages finally approved", "complete": weightage_governance.all_approved(db, tree), "detail": "Every complete subject weightage snapshot needs expert recommendation and administrator final approval.", "href": f"/admin/courses/{course_id}/weightages"},
+        {"key": "coordinator_readiness", "label": "Course Coordinator readiness", "complete": course.coordinator_readiness_status == "CONFIRMED", "detail": "An active assigned Course Coordinator must confirm complete-course readiness.", "href": f"/admin/courses/{course_id}/syllabus/reviews"},
+        {"key": "identity", "label": "Course identity and examination information", "complete": bool(course.title and course.programme_code and course.examination_name and course.examination_authority), "detail": "Course title, code, examination name and examination authority must be configured.", "href": f"/admin/courses/{course_id}/edit"},
         {"key": "syllabus", "label": "Structured syllabus", "complete": hierarchy, "detail": "Every subject requires a unit and every unit requires a topic.", "href": f"/admin/courses/{course_id}/syllabus"},
         {"key": "coordinator", "label": "Active course coordinator", "complete": bool(active_coordinators), "detail": "Assign at least one active course coordinator.", "href": f"/admin/academic-responsibilities?course_id={course_id}"},
         {"key": "experts", "label": "Subject experts", "complete": bool(subjects) and all(subject["id"] in expert_subjects for subject in subjects), "detail": "Assign an active subject expert to every subject.", "href": f"/admin/academic-responsibilities?course_id={course_id}"},
@@ -1172,9 +1182,93 @@ def update_course_academic_weightages(course_id: int, payload: schemas.AcademicW
             row.weight_percent = item.weight_percent
         else:
             db.add(model(**{owner_field: owner_id, child_field: item.item_id, "weight_percent": item.weight_percent}))
+    from app.services import weightage_governance
+    affected_subject_ids = [item.id for item in children] if payload.level == "subject" else [owner_id if payload.level == "unit" else unit.subject_id if payload.level == "topic" else topic.subject_id]
+    weightage_governance.invalidate(db, scope["course"], affected_subject_ids)
     management_service.record_audit(db, actor, action=f"weightage.{payload.level}.update", target_type="course", target_id=course_id, summary=f"Updated {payload.level} weightages for {scope['course'].title}", changed_fields=[f"{payload.level}_weightages"])
     db.commit()
     return {"course_id": course_id, "level": payload.level, "parent_id": payload.parent_id, "total_percent": round(total, 2), "updated": len(payload.items), "message": f"{payload.level.capitalize()} weightages saved successfully"}
+
+
+@router.post("/courses/{course_id}/weightages/{subject_id}/governance")
+def weightage_governance_action(course_id: int, subject_id: int, payload: schemas.WeightageGovernanceAction,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
+    from app.services import weightage_governance
+    scope = _weightage_scope(db, course_id, actor)
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    subject = db.query(models.Subject).filter_by(id=subject_id, course_id=course_id).first()
+    if not subject: raise HTTPException(404, "Subject does not belong to this course")
+    tree = _academic_weight_tree(db, course_id, scope)
+    row = weightage_governance.act(db, actor, course, subject, tree, payload.action, payload.version, payload.comment)
+    management_service.record_audit(db, actor, action=f"weightage.governance.{payload.action}", target_type="subject", target_id=subject_id,
+        summary=f"{payload.action.capitalize()} weightages for {subject.name}", changed_fields=["weightage_approval_status"])
+    db.commit()
+    tree = _academic_weight_tree(db, course_id, scope)
+    return weightage_governance.serialize(db, tree, next(item for item in tree["subjects"] if item["id"] == subject_id))
+
+
+def _current_subject_tasks(db, course):
+    review = db.query(models.SyllabusReview).filter_by(course_id=course.id).order_by(models.SyllabusReview.id.desc()).first()
+    return db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id).all() if review else []
+
+
+@router.post("/courses/{course_id}/coordinator-readiness")
+def coordinator_readiness(course_id: int, payload: schemas.CoordinatorReadinessAction,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_faculty)):
+    from app.academic_auth import is_course_coordinator
+    from app.services import weightage_governance
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    if not course: raise HTTPException(404, "Course not found")
+    if not is_course_coordinator(db, actor, course_id): raise HTTPException(403, "Assigned Course Coordinator required")
+    scope = _weightage_scope(db, course_id, actor); tree = _academic_weight_tree(db, course_id, scope)
+    if payload.action == "confirm":
+        if not weightage_governance.all_recommended_or_approved(db, course, tree, _current_subject_tasks(db, course)):
+            raise HTTPException(409, "Every subject syllabus and complete weightage snapshot must be recommended or approved")
+        course.coordinator_readiness_status = "CONFIRMED"
+        course.coordinator_confirmed_by = actor.id; course.coordinator_confirmed_at = datetime.now(timezone.utc)
+    else:
+        course.coordinator_readiness_status = "PENDING"
+        course.coordinator_confirmed_by = course.coordinator_confirmed_at = None
+    management_service.record_audit(db, actor, action=f"course.coordinator_readiness.{payload.action}", target_type="course", target_id=course_id,
+        summary=f"Course Coordinator {payload.action}: {course.title}", changed_fields=["coordinator_readiness_status"])
+    db.commit()
+    return {"course_id": course_id, "coordinator_readiness_status": course.coordinator_readiness_status}
+
+
+@router.post("/courses/{course_id}/approve-all-eligible-subjects")
+def approve_all_eligible_subjects(course_id: int, payload: schemas.BulkSubjectApprovalRequest,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_admin)):
+    from app.services import syllabus_subjects, weightage_governance
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    if not course: raise HTTPException(404, "Course not found")
+    if course.coordinator_readiness_status != "CONFIRMED":
+        raise HTTPException(409, "Course Coordinator readiness confirmation is required first")
+    review = db.query(models.SyllabusReview).filter_by(course_id=course_id).order_by(models.SyllabusReview.id.desc()).first()
+    tasks = db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id).all() if review else []
+    task_by_subject = {task.live_subject_id: task for task in tasks if task.live_subject_id}
+    scope = _weightage_scope(db, course_id, actor); tree = _academic_weight_tree(db, course_id, scope)
+    approved, blocked = [], []
+    for subject_data in tree["subjects"]:
+        subject = db.get(models.Subject, subject_data["id"]); task = task_by_subject.get(subject.id)
+        weight = weightage_governance.state(db, course_id, subject.id, create=True)
+        weight_view = weightage_governance.serialize(db, tree, subject_data)
+        syllabus_eligible = bool(task and task.status in {"RECOMMENDED", "APPROVED"})
+        weight_eligible = weight_view["status"] in {"RECOMMENDED", "APPROVED"}
+        if not (syllabus_eligible and weight_eligible and weight_view["complete"]):
+            blocked.append({"subject_id": subject.id, "subject_name": subject.name,
+                "syllabus_status": task.status if task else "MISSING", "weightage_status": weight_view["status"]})
+            continue
+        if task.status == "RECOMMENDED":
+            syllabus_subjects.approve_task(db, actor, course, review, task, payload.comment)
+        if weight.status == "RECOMMENDED":
+            weightage_governance.act(db, actor, course, subject, tree, "approve", weight.version, payload.comment)
+        approved.append({"subject_id": subject.id, "subject_name": subject.name})
+    if review and syllabus_subjects.ready(db, review) and review.status != "APPROVED":
+        syllabus_subjects.materialize(db, actor, course, review)
+    management_service.record_audit(db, actor, action="course.approve_all_eligible_subjects", target_type="course", target_id=course_id,
+        summary=f"Approved {len(approved)} eligible subjects for {course.title}", changed_fields=["syllabus_approval", "weightage_approval"])
+    db.commit()
+    return {"approved": approved, "blocked": blocked, "approved_count": len(approved), "blocked_count": len(blocked)}
 
 
 # =========================

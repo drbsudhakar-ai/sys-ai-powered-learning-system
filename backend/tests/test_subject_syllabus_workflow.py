@@ -72,7 +72,7 @@ class SubjectWorkflowTests(unittest.TestCase):
         self.actor=self.expert;self.action(key,'recommend',comment='Academically verified',**({'nodes':nodes} if nodes is not None else {}))
 
     def approve(self,key='new:a'):
-        self.actor=self.cc;self.action(key,'approve',comment='Verified and finally approved')
+        self.actor=self.admin;self.action(key,'approve',comment='Verified and finally approved')
 
     def test_assignment_required_and_scoped(self):
         self.call('post',f'/reviews/{self.review["id"]}/subject-action',dict(subject_key='new:a',action='request',version=self.review['version']),code=422)
@@ -110,6 +110,34 @@ class SubjectWorkflowTests(unittest.TestCase):
         self.assertEqual(self.db.query(models.SubjectExpertAssignment).count(),2)
         self.db.refresh(self.course);self.assertEqual(self.course.syllabus_revision,1)
         self.assertEqual(self.course.publication_status,'DRAFT')
+
+    def test_existing_syllabus_approvals_remain_valid_while_weightages_follow_separate_governance(self):
+        self.request_review();self.recommend();self.approve()
+        self.request_review('new:b');self.recommend('new:b');self.approve('new:b')
+        subjects=self.db.query(models.Subject).order_by(models.Subject.id).all()
+        for subject in subjects:
+            self.db.add(models.SubjectWeightage(course_id=self.course.id,subject_id=subject.id,weight_percent=50))
+            self.db.add(models.UnitWeightage(subject_id=subject.id,unit_id=subject.units[0].id,weight_percent=100))
+            self.db.add(models.TopicWeightage(subject_id=subject.id,topic_id=subject.topics[0].id,weight_percent=100))
+        self.db.commit()
+        self.actor=self.cc
+        response=self.client.post(f'/admin/courses/{self.course.id}/coordinator-readiness',json={'action':'confirm','comment':'Complete course checked'})
+        self.assertEqual(response.status_code,409,response.text)
+        for subject in subjects:
+            self.actor=self.expert
+            tree=self.client.get(f'/admin/courses/{self.course.id}/weightages').json()
+            governance=next(item['governance'] for item in tree['subjects'] if item['id']==subject.id)
+            response=self.client.post(f'/admin/courses/{self.course.id}/weightages/{subject.id}/governance',json={
+                'action':'recommend','version':governance['version'],'comment':'All academic groups verified'})
+            self.assertEqual(response.status_code,200,response.text)
+        self.actor=self.cc
+        response=self.client.post(f'/admin/courses/{self.course.id}/coordinator-readiness',json={'action':'confirm','comment':'Complete course checked'})
+        self.assertEqual(response.status_code,200,response.text)
+        self.actor=self.admin
+        response=self.client.post(f'/admin/courses/{self.course.id}/approve-all-eligible-subjects',json={'comment':'Institutional approval'})
+        self.assertEqual(response.status_code,200,response.text);self.assertEqual(response.json()['approved_count'],2)
+        self.assertTrue(all(row.status=='APPROVED' for row in self.db.query(models.SubjectWeightageApproval)))
+        self.assertTrue(all(task.status=='APPROVED' for task in self.db.query(models.SyllabusSubjectReview)))
 
     def test_legacy_approval_bypass_is_blocked(self):
         self.call('post',f'/reviews/{self.review["id"]}/action',dict(version=self.review['version'],action='approve',comment='bypass'),code=409)
@@ -153,7 +181,7 @@ class SubjectWorkflowTests(unittest.TestCase):
         self.request_review();self.actor=self.expert;t=self.dashboard()['tasks'][0]
         desired=copy.deepcopy(t['source_nodes']);desired[-1]['description']='Expert suggested explanation'
         self.recommend(nodes=desired)
-        self.actor=self.cc;self.reload();self.assertNotEqual(self.review['nodes'][2]['description'],'Expert suggested explanation')
+        self.actor=self.admin;self.reload();self.assertNotEqual(self.review['nodes'][2]['description'],'Expert suggested explanation')
         self.approve();self.reload();self.assertIn('Expert suggested explanation',[n['description'] for n in self.review['nodes']])
 
     def test_notifications_target_expert_and_coordinator(self):
@@ -208,6 +236,13 @@ class SubjectWorkflowTests(unittest.TestCase):
         self.db.add(models.FacultyCourseAssignment(course_id=self.course.id,faculty_id=self.expert.id));self.db.commit()
         t=self.dashboard()['tasks'][0]
         self.call('post',f'/reviews/{self.review["id"]}/subject-action',dict(subject_key='new:a',action='approve',version=t['version'],comment='Self approval'),code=403)
+
+    def test_course_coordinator_can_return_but_cannot_finally_approve(self):
+        self.request_review();self.recommend();self.actor=self.cc
+        task=self.dashboard()['tasks'][0]
+        self.call('post',f'/reviews/{self.review["id"]}/subject-action',dict(subject_key='new:a',action='approve',version=task['version'],comment='Coordinator approval'),code=403)
+        self.db.rollback();task=self.dashboard()['tasks'][0]
+        self.call('post',f'/reviews/{self.review["id"]}/subject-action',dict(subject_key='new:a',action='return',version=task['version'],comment='Add academic detail'))
 
     def test_archived_course_blocks_requests(self):
         self.course.publication_status='ARCHIVED';self.db.commit()

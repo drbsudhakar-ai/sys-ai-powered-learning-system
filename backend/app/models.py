@@ -175,6 +175,9 @@ class Course(Base):
     programme_code = Column(String(80), nullable=True, index=True)
     is_active = Column(Boolean, nullable=False, server_default="false", default=False)
     publication_status = Column(String(32), nullable=False, server_default="DRAFT", default="DRAFT", index=True)
+    coordinator_readiness_status = Column(String(24), nullable=False, server_default="PENDING", default="PENDING")
+    coordinator_confirmed_at = Column(DateTime(timezone=True), nullable=True)
+    coordinator_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     self_enrollment_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
     submitted_for_review_at = Column(DateTime(timezone=True), nullable=True)
     submitted_for_review_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -876,6 +879,25 @@ class SubtopicWeightage(Base):
     topic_id = Column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), nullable=False, index=True)
     subtopic_id = Column(Integer, ForeignKey("subtopics.id", ondelete="CASCADE"), nullable=False, index=True)
     weight_percent = Column(Float, nullable=False)
+
+
+class SubjectWeightageApproval(Base):
+    """Independent governance state for one subject's complete weightage snapshot."""
+    __tablename__ = "subject_weightage_approvals"
+    __table_args__ = (UniqueConstraint("course_id", "subject_id", name="uq_subject_weightage_approval"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(24), nullable=False, server_default="DRAFT", default="DRAFT", index=True)
+    version = Column(Integer, nullable=False, server_default="0", default=0)
+    snapshot_hash = Column(String(64), nullable=False, server_default="", default="")
+    recommendation_comment = Column(String(2000), nullable=False, server_default="", default="")
+    recommended_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    recommended_at = Column(DateTime(timezone=True), nullable=True)
+    decision_comment = Column(String(2000), nullable=False, server_default="", default="")
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class PriorityWeightConfig(Base):

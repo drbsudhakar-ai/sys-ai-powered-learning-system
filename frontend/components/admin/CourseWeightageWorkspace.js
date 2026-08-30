@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeftIcon, ArrowPathIcon, BookmarkSquareIcon, ScaleIcon } from "@heroicons/react/24/outline";
-import { getAdminOperationsSummary, getApiErrorMessage, getCourseAcademicWeightages, updateCourseAcademicWeightages } from "../../src/api";
+import { actOnWeightageGovernance, getAdminOperationsSummary, getApiErrorMessage, getCourseAcademicWeightages, updateCourseAcademicWeightages } from "../../src/api";
 import { equalDistribution, groupPayload, groupState, groupTotal, WEIGHTAGE_LEVELS, weightageGroups, weightageReadiness } from "../../src/academicWeightages";
 import AdminShell from "./AdminShell";
 import BrandedState from "./BrandedState";
@@ -32,7 +32,7 @@ function WeightageGroup({ group, drafts, setDrafts, onSave, saving }) {
 
 export default function CourseWeightageWorkspace() {
   const router = useRouter();
-  const access = useAdminAccess();
+  const access = useAdminAccess({ allowFaculty: true });
   const courseId = router.query.id;
   const [tree, setTree] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -44,6 +44,7 @@ export default function CourseWeightageWorkspace() {
   const [levelFilter, setLevelFilter] = useState("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [drafts, setDrafts] = useState({});
+  const [governanceComments, setGovernanceComments] = useState({});
 
   const refresh = useCallback(async () => {
     if (!courseId) return;
@@ -77,6 +78,18 @@ export default function CourseWeightageWorkspace() {
     finally { setSavingKey(""); }
   }
 
+  async function govern(subject, action) {
+    const comment = (governanceComments[subject.id] || "").trim();
+    if (!comment) return setError("Record a recommendation or decision comment first.");
+    setSavingKey(`governance:${subject.id}`); setError(""); setSuccess("");
+    try {
+      await actOnWeightageGovernance(courseId, subject.id, { action, version: subject.governance?.version || 0, comment });
+      await refresh(); setGovernanceComments((old) => ({ ...old, [subject.id]: "" }));
+      setSuccess(`${subject.name} weightages ${action === "recommend" ? "recommended for final approval" : action === "approve" ? "finally approved" : "returned for changes"}.`);
+    } catch (requestError) { setError(getApiErrorMessage(requestError, "Unable to update weightage governance.")); }
+    finally { setSavingKey(""); }
+  }
+
   if (access.status === "checking") return <BrandedState title="Verifying administrator access" message="Preparing the SYS academic weightage workspace." />;
   if (access.status === "error") return <BrandedState type="error" title="Academic weightages unavailable" message={access.error} />;
   if (access.status !== "ready") return null;
@@ -84,6 +97,7 @@ export default function CourseWeightageWorkspace() {
   return <><Head><title>{tree?.course_title || "Course"} Weightages | SYS</title><meta name="description" content="Configure approved SYS subject, unit, topic, and subtopic academic weightages." /><link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" /></Head><AdminShell user={access.user} unreadNotifications={summary?.unread_notifications || 0} breadcrumb="Academic Management" pageTitle="Academic Weightages" scopeLabel={summary?.scope_label || "Platform-wide"}><main className={styles.workspace}><Link href={courseId ? `/admin/courses/${courseId}` : "/admin/courses"} className={styles.back}><ArrowLeftIcon />Back to course profile</Link><header className={styles.heading}><div><span className={styles.eyebrow}>Academic management · Examination intelligence</span><h1>{tree?.course_title || "Course"} Academic Weightages</h1><p>Set approved academic importance for every course, subject, unit, topic, and subtopic group.</p></div><div className={styles.actions}><button type="button" className={styles.button} disabled={loading || Boolean(savingKey)} onClick={() => { setLoading(true); refresh().catch((requestError) => setError(getApiErrorMessage(requestError, "Unable to refresh academic weightages."))).finally(() => setLoading(false)); }}><ArrowPathIcon />Refresh</button><Link href={`/admin/courses/${courseId}/syllabus`} className={styles.button}><ScaleIcon />Manage syllabus</Link></div></header>
     <section className={styles.metrics}><Metric label="Subject weightages" value={tree?.configured?.subjects || 0} detail={`${tree?.subjects?.length || 0} course subjects available`} /><Metric label="Unit weightages" value={tree?.configured?.units || 0} detail="Configured within each subject" /><Metric label="Topic and subtopic weightages" value={(tree?.configured?.topics || 0) + (tree?.configured?.subtopics || 0)} detail="Detailed learning priorities" /><Metric label="Weightage readiness" value={`${readiness.percent}%`} detail={`${readiness.completed} of ${readiness.groups} groups complete`} /></section>
     <div className={styles.notice}>Every sibling group is saved independently and must equal exactly 100%. These weightages support future assessment blueprints, learning prioritization, and question intelligence.</div>{error && <div className={styles.error} role="alert">{error}</div>}{success && <div className={styles.success} role="status">{success}</div>}
+    <section className={styles.panel}><h2>Weightage reviews and approvals</h2><p>Weightage approval is separate from syllabus approval. Overall subject readiness requires both.</p>{(tree?.subjects || []).map((subject) => <article className={styles.group} key={`governance-${subject.id}`}><header className={styles.groupHeader}><div><h2>{subject.name}</h2><p>Syllabus weightages: {subject.governance?.complete ? "Every applicable group totals exactly 100%." : "Configuration is incomplete."}</p></div><span>{String(subject.governance?.status || "NOT_CONFIGURED").replaceAll("_", " ")}</span></header><label>Recommendation or decision comment<textarea value={governanceComments[subject.id] || ""} onChange={(event) => setGovernanceComments((old) => ({ ...old, [subject.id]: event.target.value }))} /></label><div className={styles.actions}>{!tree.can_manage_course && <button className={styles.primary} disabled={savingKey || !subject.governance?.complete || !governanceComments[subject.id]?.trim()} onClick={() => govern(subject, "recommend")}>Recommend weightages</button>}{tree.can_final_approve && subject.governance?.status === "RECOMMENDED" && <><button className={styles.primary} disabled={savingKey || tree.coordinator_readiness_status !== "CONFIRMED" || !governanceComments[subject.id]?.trim()} onClick={() => govern(subject, "approve")}>Finally approve weightages</button><button disabled={savingKey || !governanceComments[subject.id]?.trim()} onClick={() => govern(subject, "return")}>Return weightages for changes</button></>}</div>{subject.governance?.status === "APPROVED" && <p><strong>Weightages finally approved.</strong></p>}</article>)}</section>
     <div className={styles.layout}><section className={styles.panel}><div className={styles.toolbar}><input aria-label="Search academic weightages" className={styles.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search subject, unit, topic, or subtopic" /><select aria-label="Filter weightage level" className={styles.select} value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}><option value="all">All hierarchy levels</option>{WEIGHTAGE_LEVELS.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}</select><select aria-label="Filter subject" className={styles.select} value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}><option value="all">All subjects</option>{(tree?.subjects || []).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></div>{loading ? <div className={styles.loading}>Loading syllabus hierarchy and saved academic weightages…</div> : !groups.length ? <div className={styles.empty}><h3>No syllabus items available for weightages</h3><p>Add course subjects, units, topics, and subtopics before assigning academic importance.</p><Link href={`/admin/courses/${courseId}/syllabus`} className={styles.primary}>Open syllabus workspace</Link></div> : !visible.length ? <div className={styles.empty}><h3>No weightage groups match the selected filters</h3><p>Adjust the hierarchy, subject, or search filters.</p></div> : visible.map((group) => <WeightageGroup key={group.key} group={group} drafts={drafts} setDrafts={setDrafts} onSave={save} saving={savingKey === group.key} />)}</section>
     <aside className={styles.guidance}><h2>How SYS academic weightages work</h2><p>Assign relative importance within each parent group. Each group must total 100% before it can be saved.</p><div className={styles.hierarchy}><div><strong>Course → Subjects</strong><small>Physics + Chemistry + Biology = 100%</small></div><div><strong>Subject → Units</strong><small>All Physics units together = 100%</small></div><div><strong>Unit → Topics</strong><small>All topics inside one unit = 100%</small></div><div><strong>Topic → Subtopics</strong><small>All subtopics inside one topic = 100%</small></div></div><ul><li>Administrators and course coordinators can manage the entire course.</li><li>Subject experts can update only their assigned subjects.</li><li>Equal distribution provides a safe starting point.</li><li>Every saved change is recorded in the SYS audit trail.</li></ul><div className={styles.scope}>Future learning, assessments, and question-intelligence modules can consume these approved academic priorities.</div></aside></div>
   </main></AdminShell></>;

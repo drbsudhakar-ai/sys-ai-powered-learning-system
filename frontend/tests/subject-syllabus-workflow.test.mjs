@@ -9,13 +9,13 @@ test('three pages retain authoring, upload, and review separation',()=>{
   assert.match(read('../components/syllabus/SyllabusReviewWorkspace.js'),/page==='approved'.*ApprovedRedirect/);
 });
 test('expert recommendations and final approval have distinct controls',()=>{
-  for(const label of ['Request review','Recommend approval without changes','Submit proposed changes','Finally approve subject','Return for changes'])assert.ok(dashboard.includes(label));
-  assert.match(dashboard,/task\.reviewer_id===data\.actor_id/);
-  assert.match(dashboard,/task\.reviewer_id===data\?\.actor_id/);
+  for(const label of ['Request review','Recommend approval without changes','Submit proposed changes','Finally approve subject','Return for changes','Syllabus finally approved'])assert.ok(dashboard.includes(label));
+  assert.match(dashboard,/task\.reviewer_id === data\?\.actor_id/);
+  assert.match(dashboard,/data\.can_final_approve/);
 });
 test('administrator review readiness does not duplicate the syllabus structure tree',()=>{
-  assert.match(dashboard,/!data\.can_manage&&tree\(\)/);
-  assert.match(dashboard,/data\.can_manage&&t\?\.status==='RECOMMENDED'/);
+  assert.match(dashboard,/!data\.can_manage\) && tree\(\)/);
+  assert.match(dashboard,/t\?\.status === "RECOMMENDED"/);
   assert.match(dashboard,/Open expert recommendation/);
 });
 test('PDF downloads and reset require saved content',()=>{
@@ -24,6 +24,6 @@ test('PDF downloads and reset require saved content',()=>{
   assert.match(actions,/Advanced actions/);assert.match(actions,/recovery snapshot/);
 });
 test('SYS branding, role-aware links, and history remain visible',()=>{
-  assert.match(dashboard,/Shape Your Successful Future/);assert.match(dashboard,/courseHomeLink\(role,id\)/);
+  assert.match(dashboard,/Shape Your Successful Future/);assert.match(dashboard,/courseHomeLink\(role, id\)/);
   assert.match(dashboard,/Approved version history and downloads/);assert.match(dashboard,/Review audit history/);
 });

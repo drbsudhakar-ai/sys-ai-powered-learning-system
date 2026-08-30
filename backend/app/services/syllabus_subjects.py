@@ -79,6 +79,23 @@ def materialize(db, actor, course, review):
             db.add(models.SubjectExpertAssignment(subject_id=subject.id, faculty_id=task.reviewer_id))
     db.flush()
 
+
+def approve_task(db, actor, course, review, task, comment):
+    """Apply one current expert recommendation as an administrator syllabus decision."""
+    from app.academic_auth import is_admin
+    if not is_admin(actor): raise HTTPException(403, 'Administrator final approval is required')
+    if task.status != 'RECOMMENDED': raise HTTPException(409, 'Expert recommendation is required first')
+    if not comment.strip(): raise HTTPException(422, 'Record the final decision comment')
+    current = branch(review.proposed_nodes, task.subject_key)
+    if task.source_hash != core.fingerprint(current): raise HTTPException(409, 'Subject changed; request a fresh review')
+    if not valid_reviewer(db, task): raise HTTPException(409, 'Reviewer assignment is no longer active')
+    desired = [n for n in review.proposed_nodes if n not in current] + task.proposed_nodes
+    core.validate_nodes(desired, review.base_nodes)
+    review.proposed_nodes = desired
+    task.source_hash = core.fingerprint(task.proposed_nodes)
+    task.status = 'APPROVED'; task.version += 1
+    task.decision_comment = comment.strip(); task.approved_at = datetime.now(timezone.utc); task.approved_by = actor.id
+
 def publication_ready(db, course):
     pending = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course.id,
         models.SyllabusReview.status.in_(['DRAFT', 'SUBMITTED', 'CHANGES_REQUESTED'])).all()
