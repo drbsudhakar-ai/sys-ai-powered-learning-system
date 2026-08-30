@@ -30,7 +30,9 @@ export function equalDistribution(items = []) {
 
 export function weightageGroups(tree) {
   const subjects = Array.isArray(tree?.subjects) ? tree.subjects : [];
-  const groups = [{ key: `subject-${tree?.course_id || 0}`, level: "subject", parent_id: tree?.course_id, parent_name: tree?.course_title || "Course", subject_id: null, items: subjects, editable: tree?.can_manage_course === true }];
+  const groups = tree?.can_manage_course === true
+    ? [{ key: `subject-${tree?.course_id || 0}`, level: "subject", parent_id: tree?.course_id, parent_name: tree?.course_title || "Course", subject_id: null, items: subjects, editable: true }]
+    : [];
   for (const subject of subjects) {
     groups.push({ key: `unit-${subject.id}`, level: "unit", parent_id: subject.id, parent_name: subject.name, subject_id: subject.id, items: subject.units || [], editable: subject.editable !== false });
     for (const unit of subject.units || []) {
@@ -44,9 +46,26 @@ export function weightageGroups(tree) {
 export function weightageReadiness(tree) {
   const groups = weightageGroups(tree).filter((group) => group.items.length);
   const completed = groups.filter((group) => groupState(group.items) === "complete").length;
+  if (tree?.pilot) {
+    const coveredPercent = Number((tree.subjects || []).reduce((sum, subject) => (
+      subject.governance?.complete ? sum + (weightValue(subject.weight_percent) || 0) : sum
+    ), 0).toFixed(2));
+    return { groups: groups.length, completed, pending: groups.length - completed, percent: coveredPercent, coveredPercent };
+  }
   return { groups: groups.length, completed, pending: groups.length - completed, percent: groups.length ? Math.round((completed / groups.length) * 100) : 0 };
 }
 
 export function groupPayload(group, values) {
   return { level: group.level, parent_id: Number(group.parent_id), items: group.items.map((item) => ({ item_id: Number(item.id), weight_percent: Number(values[item.id] ?? item.weight_percent) })) };
+}
+
+export function pilotGroupPayload(group, values, courseId) {
+  return {
+    level: group.level,
+    parent_key: group.level === "subject" ? `course:${courseId}` : String(group.parent_id),
+    items: group.items.map((item) => ({
+      item_key: String(item.id),
+      weight_percent: Number(values[item.id] ?? item.weight_percent),
+    })),
+  };
 }

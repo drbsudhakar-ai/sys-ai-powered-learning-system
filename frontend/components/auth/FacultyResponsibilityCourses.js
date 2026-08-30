@@ -220,6 +220,10 @@ export default function FacultyResponsibilityCourses({ mode }) {
                       <ClipboardDocumentCheckIcon />
                       Reviews & approvals
                     </Link>
+                    <Link href={`/faculty/coordinator-courses/${course.id}/weightages`}>
+                      <ClipboardDocumentCheckIcon />
+                      Course weightages
+                    </Link>
                   </div>
                 </article>
               ))

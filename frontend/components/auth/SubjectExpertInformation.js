@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowDownTrayIcon,
   BookOpenIcon,
+  ScaleIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -156,6 +157,23 @@ export default function SubjectExpertInformation() {
               <span>Assessments</span>
             </article>
           </section>
+          {reviewTaskId && data.assignment?.review_status === "APPROVED" && (
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <ScaleIcon />
+                <div>
+                  <h2>Subject academic weightages</h2>
+                  <p>
+                    Configure, verify, and recommend the approved subject branch&apos;s
+                    pilot weightages for administrator approval.
+                  </p>
+                </div>
+              </div>
+              <Link className={styles.back} href={{ pathname: `/faculty/subject-expert-courses/${courseId}/weightages`, query: { reviewTaskId } }}>
+                Review and recommend subject weightages
+              </Link>
+            </section>
+          )}
           <section className={styles.card}>
             <div className={styles.cardTitle}>
               <BookOpenIcon />

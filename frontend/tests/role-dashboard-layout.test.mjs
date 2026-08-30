@@ -76,7 +76,39 @@ test("subject experts have an ownership-scoped subject information workspace", a
   assert.match(workspace, /Subject syllabus/);
   assert.match(workspace, /Students enrolled in the course/);
   assert.match(workspace, /enrollment_scope/);
+  assert.match(workspace, /Review and recommend subject weightages/);
+  assert.match(workspace, /\/faculty\/subject-expert-courses\/\$\{courseId\}\/weightages/);
   assert.match(api, /getSubjectExpertInformation/);
+});
+
+test("subject expert weightages remain inside the faculty workspace", async () => {
+  const page = await readFile(
+    new URL("../pages/faculty/subject-expert-courses/[courseId]/weightages.js", import.meta.url),
+    "utf8",
+  );
+  const workspace = await readFile(
+    new URL("../components/admin/CourseWeightageWorkspace.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /CourseWeightageWorkspace facultyMode/);
+  assert.match(workspace, /Back to subject profile/);
+  assert.match(workspace, /!roleWorkspaceMode &&/);
+  assert.match(workspace, /getSubjectExpertAcademicWeightages\(courseId, reviewTaskId\)/);
+  assert.match(workspace, /Subject Expert · Assigned subject weightages/);
+});
+
+test("course coordinator flow owns the complete course weightage workspace", async () => {
+  const page = await readFile(
+    new URL("../pages/faculty/coordinator-courses/[courseId]/weightages.js", import.meta.url),
+    "utf8",
+  );
+  const courses = await readFile(
+    new URL("../components/auth/FacultyResponsibilityCourses.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /CourseWeightageWorkspace coordinatorMode/);
+  assert.match(courses, /coordinator-courses\/\$\{course\.id\}\/weightages/);
+  assert.match(courses, /Course weightages/);
 });
 
 test("authenticated role workspaces do not repeat the public header and footer", async () => {

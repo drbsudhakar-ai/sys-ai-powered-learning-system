@@ -993,14 +993,22 @@ def _weightage_scope(db: Session, course_id: int, actor: models.User) -> dict:
         raise HTTPException(status_code=404, detail="Course not found")
     role = str(actor.role or "").lower()
     if role in {"admin", "super_admin"}:
-        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role}
+        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role, "actor_id": actor.id}
     coordinator = db.query(models.FacultyCourseAssignment.id).filter(models.FacultyCourseAssignment.course_id == course_id, models.FacultyCourseAssignment.faculty_id == actor.id).first()
     if coordinator:
-        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role}
+        return {"course": course, "can_manage_course": True, "subject_ids": None, "actor_role": role, "actor_id": actor.id}
     subject_ids = {row[0] for row in db.query(models.SubjectExpertAssignment.subject_id).join(models.Subject, models.Subject.id == models.SubjectExpertAssignment.subject_id).filter(models.Subject.course_id == course_id, models.SubjectExpertAssignment.faculty_id == actor.id).all()}
     if not subject_ids:
-        raise HTTPException(status_code=403, detail="Academic responsibility for this course is required")
-    return {"course": course, "can_manage_course": False, "subject_ids": subject_ids, "actor_role": role}
+        draft_task = db.query(models.SyllabusSubjectReview.id).join(
+            models.SyllabusReview, models.SyllabusReview.id == models.SyllabusSubjectReview.review_id
+        ).filter(
+            models.SyllabusReview.course_id == course_id,
+            models.SyllabusSubjectReview.reviewer_id == actor.id,
+            models.SyllabusSubjectReview.status == "APPROVED",
+        ).first()
+        if not (course.governance_mode == "PILOT" and draft_task):
+            raise HTTPException(status_code=403, detail="Academic responsibility for this course is required")
+    return {"course": course, "can_manage_course": False, "subject_ids": subject_ids, "actor_role": role, "actor_id": actor.id}
 
 
 def _academic_weight_tree(db: Session, course_id: int, scope: dict) -> dict:
@@ -1016,13 +1024,77 @@ def _academic_weight_tree(db: Session, course_id: int, scope: dict) -> dict:
         editable = scope["can_manage_course"] or subject.id in (scope["subject_ids"] or set())
         visible.append({"id": subject.id, "name": subject.name, "weight_percent": subject_weights.get(subject.id), "editable": editable, "units": [{"id": unit.id, "name": unit.name, "sequence": unit.sequence, "weight_percent": unit_weights.get(unit.id), "topics": [{"id": topic.id, "name": topic.name, "weight_percent": topic_weights.get(topic.id), "subtopics": [{"id": subtopic.id, "name": subtopic.name, "weight_percent": subtopic_weights.get(subtopic.id)} for subtopic in sorted(topic.subtopics, key=lambda item: (item.sequence, item.name.lower()))]} for topic in sorted(unit.topics, key=lambda item: (item.sequence, item.name.lower()))]} for unit in sorted(subject.units, key=lambda item: (item.sequence, item.name.lower()))]})
     configured = {"subjects": len(subject_weights), "units": len(unit_weights), "topics": len(topic_weights), "subtopics": len(subtopic_weights)}
-    tree = {"course_id": course_id, "course_title": scope["course"].title, "can_manage_course": scope["can_manage_course"],
+    tree = {"course_id": course_id, "course_title": scope["course"].title,
+        "course_code": scope["course"].programme_code, "governance_mode": scope["course"].governance_mode,
+        "can_manage_course": scope["can_manage_course"],
         "actor_role": scope["actor_role"], "can_final_approve": scope["actor_role"] in {"admin", "super_admin"},
         "editable_subject_ids": None if scope["can_manage_course"] else sorted(scope["subject_ids"]), "configured": configured, "subjects": visible}
     from app.services import weightage_governance
     for subject in visible:
         subject["governance"] = weightage_governance.serialize(db, tree, subject)
     tree["coordinator_readiness_status"] = scope["course"].coordinator_readiness_status
+    return tree
+
+
+def _pilot_weight_tree(db: Session, course_id: int, scope: dict) -> dict | None:
+    course = scope["course"]
+    if course.governance_mode != "PILOT": return None
+    review = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course_id,
+        models.SyllabusReview.subject_id.is_(None), models.SyllabusReview.status.in_(["DRAFT", "CHANGES_REQUESTED"])
+        ).order_by(models.SyllabusReview.id.desc()).first()
+    if not review: return None
+    nodes = review.proposed_nodes or []; children = {}
+    for node in nodes: children.setdefault(node.get("parent"), []).append(node)
+    for group in children.values(): group.sort(key=lambda item: (item.get("sequence", 1), item.get("name", "").lower()))
+    tasks = {task.subject_key: task for task in db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id)}
+    subject_values = review.draft_subject_weightages or {}
+    subjects = []
+    configured = {"subjects": len(subject_values), "units": 0, "topics": 0, "subtopics": 0}
+    for subject_node in children.get(None, []):
+        task = tasks.get(subject_node["key"]); values = task.draft_weightages or {} if task else {}
+        editable = bool(task and task.status == "APPROVED" and (scope["can_manage_course"] or task.reviewer_id == scope["actor_id"]))
+        if scope.get("draft_task_id") is not None and (not task or task.id != scope["draft_task_id"]):
+            editable = False
+        units = []
+        for unit_node in children.get(subject_node["key"], []):
+            unit_values = values.get(f"unit:{subject_node['key']}", {})
+            topics = []
+            for topic_node in children.get(unit_node["key"], []):
+                topic_values = values.get(f"topic:{unit_node['key']}", {})
+                subtopic_values = values.get(f"subtopic:{topic_node['key']}", {})
+                subtopics = [{"id": node["key"], "name": node["name"], "weight_percent": subtopic_values.get(node["key"])}
+                    for node in children.get(topic_node["key"], [])]
+                configured["subtopics"] += sum(item["weight_percent"] is not None for item in subtopics)
+                topics.append({"id": topic_node["key"], "name": topic_node["name"],
+                    "weight_percent": topic_values.get(topic_node["key"]), "subtopics": subtopics})
+            configured["topics"] += sum(item["weight_percent"] is not None for item in topics)
+            units.append({"id": unit_node["key"], "name": unit_node["name"], "sequence": unit_node.get("sequence", 1),
+                "weight_percent": unit_values.get(unit_node["key"]), "topics": topics})
+        configured["units"] += sum(item["weight_percent"] is not None for item in units)
+        governance = {"status": task.weightage_status if task else "NOT_CONFIGURED",
+            "version": task.weightage_version if task else 0, "complete": False,
+            "recommendation_comment": task.weightage_recommendation_comment if task else "",
+            "decision_comment": "", "task_id": task.id if task else None, "pilot": True}
+        subjects.append({"id": subject_node["key"], "subject_key": subject_node["key"], "name": subject_node["name"],
+            "weight_percent": subject_values.get(subject_node["key"]), "editable": editable,
+            "syllabus_status": task.status if task else "NOT_REQUESTED", "governance": governance, "units": units})
+    tree = {"course_id": course_id, "course_title": course.title, "course_code": course.programme_code,
+        "governance_mode": course.governance_mode, "can_manage_course": scope["can_manage_course"],
+        "actor_role": scope["actor_role"], "can_final_approve": scope["actor_role"] in {"admin", "super_admin"},
+        "editable_subject_ids": None, "configured": configured, "subjects": subjects, "pilot": True,
+        "draft_review_id": review.id, "draft_review_version": review.version,
+        "coordinator_readiness_status": course.coordinator_readiness_status}
+    from app.services import weightage_governance
+    for subject in subjects: subject["governance"]["complete"] = weightage_governance.subject_complete(tree, subject["id"])
+    if not scope["can_manage_course"]:
+        subjects = [subject for subject in subjects if subject["editable"]]
+        tree["subjects"] = subjects
+        tree["configured"] = {
+            "subjects": sum(subject.get("weight_percent") is not None for subject in subjects),
+            "units": sum(unit.get("weight_percent") is not None for subject in subjects for unit in subject["units"]),
+            "topics": sum(topic.get("weight_percent") is not None for subject in subjects for unit in subject["units"] for topic in unit["topics"]),
+            "subtopics": sum(subtopic.get("weight_percent") is not None for subject in subjects for unit in subject["units"] for topic in unit["topics"] for subtopic in topic["subtopics"]),
+        }
     return tree
 
 
@@ -1127,8 +1199,145 @@ def archive_course(course_id: int, db: Session = Depends(database.get_db), actor
 
 
 @router.get("/courses/{course_id}/weightages")
-def get_course_academic_weightages(course_id: int, db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
-    return _academic_weight_tree(db, course_id, _weightage_scope(db, course_id, actor))
+def get_course_academic_weightages(course_id: int, review_task_id: int = None,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
+    scope = _weightage_scope(db, course_id, actor)
+    if review_task_id is not None:
+        task = db.query(models.SyllabusSubjectReview).join(
+            models.SyllabusReview, models.SyllabusReview.id == models.SyllabusSubjectReview.review_id
+        ).filter(
+            models.SyllabusSubjectReview.id == review_task_id,
+            models.SyllabusReview.course_id == course_id,
+        ).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Assigned subject review was not found")
+        if task.reviewer_id != actor.id:
+            raise HTTPException(status_code=403, detail="This subject review is not assigned to the current Subject Expert")
+        scope = {**scope, "can_manage_course": False, "subject_ids": set(), "draft_task_id": task.id}
+    return _pilot_weight_tree(db, course_id, scope) or _academic_weight_tree(db, course_id, scope)
+
+
+@router.get("/courses/{course_id}/subject-expert-weightages/{review_task_id}")
+def get_subject_expert_weightages(course_id: int, review_task_id: int,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_faculty)):
+    task = db.query(models.SyllabusSubjectReview).join(
+        models.SyllabusReview, models.SyllabusReview.id == models.SyllabusSubjectReview.review_id
+    ).filter(
+        models.SyllabusSubjectReview.id == review_task_id,
+        models.SyllabusSubjectReview.reviewer_id == actor.id,
+        models.SyllabusReview.course_id == course_id,
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Assigned Subject Expert weightage responsibility was not found")
+    base = _weightage_scope(db, course_id, actor)
+    scope = {**base, "can_manage_course": False, "subject_ids": set(), "draft_task_id": task.id}
+    return _pilot_weight_tree(db, course_id, scope) or _academic_weight_tree(db, course_id, scope)
+
+
+@router.get("/courses/{course_id}/coordinator-weightages")
+def get_coordinator_weightages(course_id: int, db: Session = Depends(database.get_db),
+        actor: models.User = Depends(_faculty)):
+    assigned = db.query(models.FacultyCourseAssignment.id).filter_by(
+        course_id=course_id, faculty_id=actor.id
+    ).first()
+    if not assigned:
+        raise HTTPException(status_code=403, detail="Assigned Course Coordinator responsibility is required")
+    scope = _weightage_scope(db, course_id, actor)
+    return _pilot_weight_tree(db, course_id, scope) or _academic_weight_tree(db, course_id, scope)
+
+
+@router.post("/courses/{course_id}/pilot-governance")
+def set_pilot_governance(course_id: int, payload: schemas.PilotGovernanceRequest,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_admin)):
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    if not course: raise HTTPException(404, "Course not found")
+    if payload.course_code != course.programme_code: raise HTTPException(422, "Enter the exact course code")
+    if course.publication_status == "PUBLISHED": raise HTTPException(409, "Return the course from institutional publication before changing governance mode")
+    course.governance_mode = "PILOT" if payload.action == "enable" else "INSTITUTIONAL"
+    course.coordinator_readiness_status = "PENDING"
+    course.coordinator_confirmed_at = course.coordinator_confirmed_by = None
+    management_service.record_audit(db, actor, action=f"course.pilot_governance.{payload.action}", target_type="course", target_id=course_id,
+        summary=f"{payload.action.capitalize()} pilot governance for {course.title}", changed_fields=["governance_mode"])
+    db.add(models.AdminAuditLog(actor_user_id=actor.id, action="course.pilot_governance.reason", target_type="course",
+        target_id=course_id, summary=payload.reason, details={"governance_mode": course.governance_mode}))
+    db.commit(); return {"course_id": course_id, "governance_mode": course.governance_mode}
+
+
+def _draft_subject_key(nodes, node):
+    lookup = {item["key"]: item for item in nodes}
+    while node.get("level") != "subject": node = lookup[node["parent"]]
+    return node["key"]
+
+
+@router.put("/courses/{course_id}/pilot-weightages")
+def update_pilot_weightages(course_id: int, payload: schemas.DraftAcademicWeightageGroupUpdate,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
+    scope = _weightage_scope(db, course_id, actor); course = scope["course"]
+    if course.governance_mode != "PILOT": raise HTTPException(409, "Enable controlled pilot governance first")
+    review = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course_id,
+        models.SyllabusReview.subject_id.is_(None), models.SyllabusReview.status.in_(["DRAFT", "CHANGES_REQUESTED"])
+        ).order_by(models.SyllabusReview.id.desc()).with_for_update().first()
+    if not review: raise HTTPException(409, "A saved syllabus draft is required")
+    nodes = review.proposed_nodes or []; lookup = {node["key"]: node for node in nodes}
+    ids = [item.item_key for item in payload.items]
+    if len(ids) != len(set(ids)): raise HTTPException(422, "Each syllabus item can appear only once")
+    total = sum(item.weight_percent for item in payload.items)
+    if not isclose(total, 100.0, abs_tol=0.01): raise HTTPException(422, f"Weightages must total exactly 100%; received {round(total, 2)}%")
+    if payload.level == "subject":
+        if payload.parent_key != f"course:{course_id}" or not scope["can_manage_course"]:
+            raise HTTPException(403, "Only an administrator or Course Coordinator can configure pilot subject weightages")
+        expected = {node["key"] for node in nodes if node["level"] == "subject"}
+        if set(ids) != expected: raise HTTPException(422, "Include every draft subject in the course-level group")
+        review.draft_subject_weightages = {item.item_key: item.weight_percent for item in payload.items}
+        affected = db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id, status="APPROVED").all()
+    else:
+        parent = lookup.get(payload.parent_key)
+        expected_parent_level = {"unit": "subject", "topic": "unit", "subtopic": "topic"}[payload.level]
+        if not parent or parent["level"] != expected_parent_level: raise HTTPException(404, "Draft weightage parent was not found")
+        expected = {node["key"] for node in nodes if node.get("parent") == payload.parent_key and node["level"] == payload.level}
+        if not expected or set(ids) != expected: raise HTTPException(422, "Include every item in the selected draft sibling group")
+        subject_key = _draft_subject_key(nodes, parent)
+        task = db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id, subject_key=subject_key).first()
+        if not task or task.status != "APPROVED": raise HTTPException(409, "Pilot weightages require a pilot-approved syllabus branch")
+        if not scope["can_manage_course"] and task.reviewer_id != actor.id: raise HTTPException(403, "Assigned Subject Expert responsibility is required")
+        values = dict(task.draft_weightages or {}); values[f"{payload.level}:{payload.parent_key}"] = {item.item_key: item.weight_percent for item in payload.items}
+        task.draft_weightages = values; affected = [task]
+    for task in affected:
+        task.weightage_status = "DRAFT"; task.weightage_version += 1
+        task.weightage_recommendation_comment = ""; task.weightage_recommended_at = None
+        task.weightage_approved_at = task.weightage_approved_by = None
+    management_service.record_audit(db, actor, action=f"pilot_weightage.{payload.level}.update", target_type="syllabus_review",
+        target_id=review.id, summary=f"Updated pilot {payload.level} weightages", changed_fields=["draft_weightages"])
+    db.commit(); return {"ok": True, "total_percent": round(total, 2), "updated": len(ids)}
+
+
+@router.post("/courses/{course_id}/pilot-weightages/{task_id}/governance")
+def pilot_weightage_action(course_id: int, task_id: int, payload: schemas.WeightageGovernanceAction,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
+    scope = _weightage_scope(db, course_id, actor); course = scope["course"]
+    if course.governance_mode != "PILOT": raise HTTPException(409, "Pilot governance is not enabled")
+    task = db.query(models.SyllabusSubjectReview).filter_by(id=task_id).with_for_update().first()
+    review = db.get(models.SyllabusReview, task.review_id) if task else None
+    if not task or not review or review.course_id != course_id: raise HTTPException(404, "Pilot subject review not found")
+    if task.status != "APPROVED": raise HTTPException(409, "Pilot syllabus approval is required first")
+    if task.weightage_version != payload.version: raise HTTPException(409, "Pilot weightages changed. Reload and try again")
+    tree = _pilot_weight_tree(db, course_id, scope); subject = next((item for item in tree["subjects"] if item["subject_key"] == task.subject_key), None)
+    if not subject or not subject["governance"]["complete"]: raise HTTPException(409, "Every applicable pilot weightage group must total exactly 100%")
+    if payload.action == "recommend":
+        if task.reviewer_id != actor.id: raise HTTPException(403, "Only the assigned pilot Subject Expert can recommend weightages")
+        task.weightage_status = "PILOT_RECOMMENDED"; task.weightage_recommendation_comment = payload.comment.strip()
+        task.weightage_recommended_at = datetime.now(timezone.utc)
+    elif payload.action == "approve":
+        if str(actor.role or "").lower() not in {"admin", "super_admin"}: raise HTTPException(403, "Administrator pilot approval is required")
+        if task.weightage_status != "PILOT_RECOMMENDED": raise HTTPException(409, "Pilot Subject Expert recommendation is required")
+        task.weightage_status = "PILOT_APPROVED"; task.weightage_approved_by = actor.id; task.weightage_approved_at = datetime.now(timezone.utc)
+    else:
+        if not scope["can_manage_course"]: raise HTTPException(403, "Administrator or Course Coordinator required")
+        task.weightage_status = "RETURNED"; task.weightage_approved_by = task.weightage_approved_at = None
+    task.weightage_version += 1
+    management_service.record_audit(db, actor, action=f"pilot_weightage.governance.{payload.action}", target_type="syllabus_subject_review",
+        target_id=task.id, summary=f"Pilot weightage {payload.action}", changed_fields=["weightage_status"])
+    db.commit(); return {"task_id": task.id, "status": task.weightage_status, "version": task.weightage_version}
 
 
 @router.put("/courses/{course_id}/weightages")

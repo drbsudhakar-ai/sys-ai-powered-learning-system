@@ -139,6 +139,55 @@ class SubjectWorkflowTests(unittest.TestCase):
         self.assertTrue(all(row.status=='APPROVED' for row in self.db.query(models.SubjectWeightageApproval)))
         self.assertTrue(all(task.status=='APPROVED' for task in self.db.query(models.SyllabusSubjectReview)))
 
+    def test_controlled_pilot_uses_draft_subjects_without_fake_syllabus_approvals(self):
+        self.request_review('new:a');self.recommend('new:a');self.approve('new:a')
+        self.actor=self.admin
+        response=self.client.post(f'/admin/courses/{self.course.id}/pilot-governance',json={
+            'action':'enable','course_code':'TGPCPWT-2026','reason':'Validate AI lecturer before institutional demonstration'})
+        self.assertEqual(response.status_code,200,response.text)
+
+        tree=self.client.get(f'/admin/courses/{self.course.id}/weightages').json()
+        self.assertTrue(tree['pilot']);self.assertEqual(len(tree['subjects']),2)
+        self.assertEqual({item['syllabus_status'] for item in tree['subjects']},{'APPROVED','NOT_REQUESTED'})
+        response=self.client.put(f'/admin/courses/{self.course.id}/pilot-weightages',json={
+            'level':'subject','parent_key':f'course:{self.course.id}','items':[
+                {'item_key':'new:a','weight_percent':50},{'item_key':'new:b','weight_percent':50}]})
+        self.assertEqual(response.status_code,200,response.text)
+
+        task=self.db.query(models.SyllabusSubjectReview).filter_by(review_id=self.review['id'],subject_key='new:a').one()
+        self.actor=self.expert
+        for level,parent,item in [('unit','new:a','new:au'),('topic','new:au','new:at')]:
+            response=self.client.put(f'/admin/courses/{self.course.id}/pilot-weightages',json={
+                'level':level,'parent_key':parent,'items':[{'item_key':item,'weight_percent':100}]})
+            self.assertEqual(response.status_code,200,response.text)
+        tree=self.client.get(f'/admin/courses/{self.course.id}/weightages').json()
+        self.assertEqual([item['id'] for item in tree['subjects']],['new:a'])
+        subject=next(item for item in tree['subjects'] if item['id']=='new:a')
+        self.assertTrue(subject['governance']['complete'])
+        scoped=self.client.get(f'/admin/courses/{self.course.id}/weightages?review_task_id={task.id}')
+        self.assertEqual(scoped.status_code,200,scoped.text)
+        self.assertEqual([item['id'] for item in scoped.json()['subjects']],['new:a'])
+        dedicated=self.client.get(f'/admin/courses/{self.course.id}/subject-expert-weightages/{task.id}')
+        self.assertEqual(dedicated.status_code,200,dedicated.text)
+        self.assertEqual([item['id'] for item in dedicated.json()['subjects']],['new:a'])
+        self.actor=self.cc
+        coordinator=self.client.get(f'/admin/courses/{self.course.id}/coordinator-weightages')
+        self.assertEqual(coordinator.status_code,200,coordinator.text)
+        self.assertEqual(len(coordinator.json()['subjects']),2)
+        self.actor=self.expert
+        response=self.client.post(f'/admin/courses/{self.course.id}/pilot-weightages/{task.id}/governance',json={
+            'action':'recommend','version':subject['governance']['version'],'comment':'Pilot hierarchy and percentages verified'})
+        self.assertEqual(response.status_code,200,response.text)
+        self.actor=self.admin
+        response=self.client.post(f'/admin/courses/{self.course.id}/pilot-weightages/{task.id}/governance',json={
+            'action':'approve','version':response.json()['version'],'comment':'Approved only for controlled pilot testing'})
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['status'],'PILOT_APPROVED')
+        self.assertEqual(self.db.query(models.Subject).count(),0)
+        tree=self.client.get(f'/admin/courses/{self.course.id}/weightages').json()
+        pending=next(item for item in tree['subjects'] if item['id']=='new:b')
+        self.assertEqual(pending['syllabus_status'],'NOT_REQUESTED')
+
     def test_legacy_approval_bypass_is_blocked(self):
         self.call('post',f'/reviews/{self.review["id"]}/action',dict(version=self.review['version'],action='approve',comment='bypass'),code=409)
 

@@ -364,3 +364,38 @@
     max-height: 80vh;
     overflow-y: auto;
   }
+
+  /* Academic weightage governance comment form */
+  label:has(> textarea[placeholder^="Record the academic verification"]) {
+    display: grid;
+    gap: 7px;
+    padding: 16px;
+    color: #173a69;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  textarea[placeholder^="Record the academic verification"] {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 96px;
+    padding: 11px 12px;
+    resize: vertical;
+    border: 1px solid #c8d5e8;
+    border-radius: 9px;
+    background: #fff;
+    color: #10264b;
+    font: inherit;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  textarea[placeholder^="Record the academic verification"]:focus {
+    border-color: #285dcd;
+    outline: 3px solid rgb(40 93 205 / 12%);
+  }
+
+  label:has(> textarea[placeholder^="Record the academic verification"]) + div {
+    margin: 0 16px 16px;
+  }

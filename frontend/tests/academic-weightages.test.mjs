@@ -37,7 +37,7 @@ test("equal distribution remains exactly 100 percent even across three siblings"
 test("subject experts cannot edit course-level or unassigned subject groups", () => {
   const scoped = { ...tree, can_manage_course: false, subjects: tree.subjects.map((subject) => ({ ...subject, editable: subject.id === 10 })) };
   const groups = weights.weightageGroups(scoped);
-  assert.equal(groups[0].editable, false);
+  assert.equal(groups.some((group) => group.level === "subject"), false);
   assert.equal(groups.find((group) => group.level === "unit" && group.parent_id === 10).editable, true);
   assert.equal(groups.find((group) => group.level === "unit" && group.parent_id === 11).editable, false);
 });
@@ -47,9 +47,31 @@ test("weightage readiness ignores empty groups and counts independently complete
   assert.deepEqual(weights.weightageReadiness(null), { groups: 0, completed: 0, pending: 0, percent: 0 });
 });
 
+test("pilot readiness reports completed course-weight coverage", () => {
+  const pilot = {
+    ...tree, pilot: true,
+    subjects: [
+      { ...tree.subjects[0], weight_percent: 12.5, governance: { complete: true } },
+      { ...tree.subjects[1], weight_percent: 25, governance: { complete: true } },
+      { id: "pending", name: "Pending", weight_percent: 62.5, units: [], governance: { complete: false } },
+    ],
+  };
+  const readiness = weights.weightageReadiness(pilot);
+  assert.equal(readiness.percent, 37.5);
+  assert.equal(readiness.coveredPercent, 37.5);
+});
+
 test("save payload retains exact level, parent, and syllabus item identifiers", () => {
   const group = weights.weightageGroups(tree)[3];
   assert.deepEqual(weights.groupPayload(group, { 40: "55", 41: "45" }), { level: "subtopic", parent_id: 30, items: [{ item_id: 40, weight_percent: 55 }, { item_id: 41, weight_percent: 45 }] });
+});
+
+test("pilot save payload retains stable draft keys instead of live numeric ids", () => {
+  const group = { level: "unit", parent_id: "new:english", items: [{ id: "new:grammar", weight_percent: 100 }] };
+  assert.deepEqual(weights.pilotGroupPayload(group, {}, 2), {
+    level: "unit", parent_key: "new:english",
+    items: [{ item_key: "new:grammar", weight_percent: 100 }],
+  });
 });
 
 test("course weightage route uses SYS administration shell without duplicate global header", async () => {
@@ -58,6 +80,19 @@ test("course weightage route uses SYS administration shell without duplicate glo
   assert.match(page, /\.getLayout = \(page\) => page;/);
   assert.match(workspace, /Every sibling group is saved independently/);
   assert.match(workspace, /Distribute equally/);
+  assert.match(workspace, /Enable controlled pilot/);
+  assert.match(workspace, /do not constitute institutional approval/);
+  assert.match(workspace, /rows="4"/);
+  assert.match(workspace, /Record the academic verification/);
+});
+
+test("weightage recommendation comment has a visible accessible textarea", async () => {
+  const workspace = await readFile(new URL("../components/admin/CourseWeightageWorkspace.js", import.meta.url), "utf8");
+  const globalStyles = await readFile(new URL("../styles/globals.css", import.meta.url), "utf8");
+  assert.match(workspace, /function RoleWorkspaceContent/);
+  assert.doesNotMatch(workspace, /\? \(\{ children \}\) => children/);
+  assert.match(globalStyles, /min-height: 96px/);
+  assert.match(globalStyles, /textarea\[placeholder\^="Record the academic verification"\]/);
 });
 
 test("course profile and syllabus both link to the academic weightage workspace", async () => {

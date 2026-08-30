@@ -832,6 +832,23 @@ class BulkSubjectApprovalRequest(BaseModel):
     comment: str = Field(..., min_length=1, max_length=2000)
 
 
+class PilotGovernanceRequest(BaseModel):
+    action: Literal["enable", "disable"]
+    course_code: str = Field(..., min_length=1, max_length=80)
+    reason: str = Field(..., min_length=10, max_length=1000)
+
+
+class DraftAcademicWeightageItem(BaseModel):
+    item_key: str = Field(..., min_length=1, max_length=90)
+    weight_percent: float = Field(..., ge=0, le=100, allow_inf_nan=False)
+
+
+class DraftAcademicWeightageGroupUpdate(BaseModel):
+    level: Literal["subject", "unit", "topic", "subtopic"]
+    parent_key: str = Field(..., min_length=1, max_length=90)
+    items: List[DraftAcademicWeightageItem] = Field(..., min_length=1, max_length=1000)
+
+
 class PriorityWeightsIn(BaseModel):
     w_historical_weightage: float = 0.25
     w_historical_frequency: float = 0.25

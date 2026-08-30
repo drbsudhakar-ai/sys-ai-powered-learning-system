@@ -224,12 +224,22 @@ export const downloadSubjectSyllabusPdf = (courseId, subjectId) =>
   API.get(`/admin/courses/${courseId}/subjects/${subjectId}/syllabus.pdf`, {
     responseType: "blob",
   });
-export const getCourseAcademicWeightages = (courseId) =>
-  API.get(`/admin/courses/${courseId}/weightages`);
+export const getCourseAcademicWeightages = (courseId, params) =>
+  API.get(`/admin/courses/${courseId}/weightages`, { params });
+export const getSubjectExpertAcademicWeightages = (courseId, reviewTaskId) =>
+  API.get(`/admin/courses/${courseId}/subject-expert-weightages/${reviewTaskId}`);
+export const getCoordinatorAcademicWeightages = (courseId) =>
+  API.get(`/admin/courses/${courseId}/coordinator-weightages`);
 export const updateCourseAcademicWeightages = (courseId, payload) =>
   API.put(`/admin/courses/${courseId}/weightages`, payload);
 export const actOnWeightageGovernance = (courseId, subjectId, payload) =>
   API.post(`/admin/courses/${courseId}/weightages/${subjectId}/governance`, payload);
+export const setPilotGovernance = (courseId, payload) =>
+  API.post(`/admin/courses/${courseId}/pilot-governance`, payload);
+export const updatePilotAcademicWeightages = (courseId, payload) =>
+  API.put(`/admin/courses/${courseId}/pilot-weightages`, payload);
+export const actOnPilotWeightageGovernance = (courseId, taskId, payload) =>
+  API.post(`/admin/courses/${courseId}/pilot-weightages/${taskId}/governance`, payload);
 export const confirmCoordinatorReadiness = (courseId, payload) =>
   API.post(`/admin/courses/${courseId}/coordinator-readiness`, payload);
 export const approveAllEligibleSubjects = (courseId, payload) =>

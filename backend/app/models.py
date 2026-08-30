@@ -178,6 +178,7 @@ class Course(Base):
     coordinator_readiness_status = Column(String(24), nullable=False, server_default="PENDING", default="PENDING")
     coordinator_confirmed_at = Column(DateTime(timezone=True), nullable=True)
     coordinator_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    governance_mode = Column(String(24), nullable=False, server_default="INSTITUTIONAL", default="INSTITUTIONAL", index=True)
     self_enrollment_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
     submitted_for_review_at = Column(DateTime(timezone=True), nullable=True)
     submitted_for_review_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -339,6 +340,7 @@ class SyllabusReview(Base):
     decided_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     submitted_at = Column(DateTime(timezone=True), nullable=True)
+    draft_subject_weightages = Column(JSON, nullable=False, default=dict)
 
 
 class SyllabusSubjectReview(Base):
@@ -361,6 +363,13 @@ class SyllabusSubjectReview(Base):
     recommended_at = Column(DateTime(timezone=True), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    draft_weightages = Column(JSON, nullable=False, default=dict)
+    weightage_status = Column(String(24), nullable=False, default="NOT_CONFIGURED")
+    weightage_version = Column(Integer, nullable=False, default=0)
+    weightage_recommendation_comment = Column(String(2000), nullable=False, default="")
+    weightage_recommended_at = Column(DateTime(timezone=True), nullable=True)
+    weightage_approved_at = Column(DateTime(timezone=True), nullable=True)
+    weightage_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
 
 class SyllabusRevision(Base):
