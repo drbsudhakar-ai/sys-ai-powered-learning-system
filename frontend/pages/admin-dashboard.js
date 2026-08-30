@@ -27,7 +27,7 @@ import { isOperationsSummary } from "../src/adminMaster";
 const QUICK_ACTIONS = [
   { label: "Add student", detail: "Create an individual student master record", href: "/admin/students/new", icon: UsersIcon },
   { label: "Add faculty", detail: "Create an individual faculty master record", href: "/admin/faculty/new", icon: UserGroupIcon },
-  { label: "Create programme", detail: "Open the existing programme creation flow", href: "/courses/new", icon: AcademicCapIcon },
+  { label: "Create course", detail: "Create a SYS learning or examination-preparation course", href: "/admin/courses/new", icon: AcademicCapIcon },
   { label: "Assign responsibility", detail: "Select faculty and assign academic ownership", href: "/admin/faculty", icon: PresentationChartLineIcon },
   { label: "Send notification", detail: "Use the existing notification workspace", href: "/admin/notifications", icon: BellAlertIcon },
 ];
@@ -139,7 +139,7 @@ export default function AdminDashboardPage() {
           <section className={styles.metricsGrid} aria-label="Operations summary">
             <MetricCard icon={UsersIcon} title="Students" state={metricState} value={data?.students.total} detail={`${data?.students.active} active · ${data?.students.pending_activation} pending activation`} />
             <MetricCard icon={UserGroupIcon} title="Faculty" state={metricState} value={data?.faculty.total} detail={`${data?.faculty.active} active · ${data?.faculty.pending_activation} pending activation`} />
-            <MetricCard icon={AcademicCapIcon} title="Programmes" state={metricState} value={data?.programmes.total} detail={`${data?.programmes.active} active · ${data?.programmes.draft} draft`} />
+            <MetricCard icon={AcademicCapIcon} title="Courses" state={metricState} value={data?.programmes.total} detail={`${data?.programmes.active} active · ${data?.programmes.draft} draft`} />
             <MetricCard icon={ExclamationTriangleIcon} title="Attention Required" state={metricState} value={data?.attention_required.total} detail="Validated actionable items across available sources" />
           </section>
 
@@ -167,7 +167,7 @@ export default function AdminDashboardPage() {
           <section className={styles.operationsGrid} aria-label="Operational panels">
             <article>
               <div className={styles.panelHeading}><span><AcademicCapIcon aria-hidden="true" /></span><div><h2>Academic Operations</h2><p>Current configured academic structures</p></div></div>
-              {data ? <dl className={styles.compactStats}><div><dt>Programmes</dt><dd>{data.academic_operations.programmes}</dd></div><div><dt>Subjects</dt><dd>{data.academic_operations.subjects}</dd></div><div><dt>Coordinator assignments</dt><dd>{data.academic_operations.coordinator_assignments}</dd></div><div><dt>Expert assignments</dt><dd>{data.academic_operations.expert_assignments}</dd></div></dl> : <EmptyOperationalState message="Academic operations are unavailable." />}
+              {data ? <dl className={styles.compactStats}><div><dt>Courses</dt><dd>{data.academic_operations.programmes}</dd></div><div><dt>Subjects</dt><dd>{data.academic_operations.subjects}</dd></div><div><dt>Coordinator assignments</dt><dd>{data.academic_operations.coordinator_assignments}</dd></div><div><dt>Expert assignments</dt><dd>{data.academic_operations.expert_assignments}</dd></div></dl> : <EmptyOperationalState message="Academic operations are unavailable." />}
             </article>
 
             <article>

@@ -84,10 +84,10 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    enrollments = relationship("StudentCourseEnrollment", back_populates="student")
+    enrollments = relationship("StudentCourseEnrollment", back_populates="student", foreign_keys="StudentCourseEnrollment.student_id")
     faculty_courses = relationship("FacultyCourseAssignment", back_populates="faculty")
     subject_expert_assignments = relationship("SubjectExpertAssignment", back_populates="faculty")
-    courses = relationship("Course", back_populates="created_by_user")
+    courses = relationship("Course", back_populates="created_by_user", foreign_keys="Course.created_by")
     assessments = relationship("Assessment", back_populates="created_by_user")
 
 
@@ -161,6 +161,7 @@ class Course(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
+    syllabus_revision = Column(Integer, nullable=False, default=0, server_default="0")
     description = Column(String(500), nullable=True)
     syllabus_url = Column(String(255), nullable=True)
     resources_url = Column(String(255), nullable=True)
@@ -172,8 +173,15 @@ class Course(Base):
     examination_authority = Column(String(200), nullable=True)
     target_purpose = Column(String(300), nullable=True)
     programme_code = Column(String(80), nullable=True, index=True)
-    is_active = Column(Boolean, nullable=False, server_default="true", default=True)
-
+    is_active = Column(Boolean, nullable=False, server_default="false", default=False)
+    publication_status = Column(String(32), nullable=False, server_default="DRAFT", default="DRAFT", index=True)
+    self_enrollment_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
+    submitted_for_review_at = Column(DateTime(timezone=True), nullable=True)
+    submitted_for_review_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    published_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    archived_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -182,7 +190,7 @@ class Course(Base):
     assessments = relationship("Assessment", back_populates="course")
     resources = relationship("Resource", back_populates="course")
     subjects = relationship("Subject", back_populates="course")
-    created_by_user = relationship("User", back_populates="courses")
+    created_by_user = relationship("User", back_populates="courses", foreign_keys=[created_by])
     questions = relationship("Question", back_populates="course")
 
 
@@ -194,8 +202,12 @@ class StudentCourseEnrollment(Base):
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String(24), nullable=False, server_default="ACTIVE", default="ACTIVE", index=True)
+    enrollment_source = Column(String(24), nullable=False, server_default="ADMIN", default="ADMIN")
+    enrolled_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    student = relationship("User", back_populates="enrollments")
+    student = relationship("User", back_populates="enrollments", foreign_keys=[student_id])
     course = relationship("Course", back_populates="enrollments")
 
 
@@ -217,15 +229,18 @@ class FacultyCourseAssignment(Base):
 
 class Subject(Base):
     __tablename__ = "subjects"
+    __table_args__ = (UniqueConstraint("course_id", "name", name="uq_subjects_course_name"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, unique=True)
+    name = Column(String(200), nullable=False)
     description = Column(String(500), nullable=True)
+    sequence = Column(Integer, nullable=False, default=1, server_default="1")
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     course = relationship("Course", back_populates="subjects")
     expert_assignments = relationship("SubjectExpertAssignment", back_populates="subject")
+    units = relationship("Unit", back_populates="subject", cascade="all, delete-orphan")
     topics = relationship("Topic", back_populates="subject")
     questions = relationship("Question", back_populates="subject")
 
@@ -249,16 +264,38 @@ class SubjectExpertAssignment(Base):
 # Topic / Subtopic
 # =========================
 
+class Unit(Base):
+    """Ordered syllabus unit, owned by exactly one academic subject."""
+    __tablename__ = "units"
+    __table_args__ = (UniqueConstraint("subject_id", "name", name="uq_units_subject_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(String(500), nullable=True)
+    learning_outcome = Column(String(500), nullable=True)
+    sequence = Column(Integer, nullable=False, server_default="1", default=1)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    subject = relationship("Subject", back_populates="units")
+    topics = relationship("Topic", back_populates="unit")
+
+
 class Topic(Base):
     __tablename__ = "topics"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     description = Column(String(500), nullable=True)
+    sequence = Column(Integer, nullable=False, default=1, server_default="1")
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    # Nullable preserves direct topic creation in existing assessment/test workflows.
+    # Managed syllabus endpoints always associate topics with an explicit unit.
+    unit_id = Column(Integer, ForeignKey("units.id", ondelete="RESTRICT"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     subject = relationship("Subject", back_populates="topics")
+    unit = relationship("Unit", back_populates="topics")
     subtopics = relationship("Subtopic", back_populates="topic")
     questions = relationship("Question", back_populates="topic")
 
@@ -269,6 +306,7 @@ class Subtopic(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     description = Column(String(500), nullable=True)
+    sequence = Column(Integer, nullable=False, default=1, server_default="1")
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -279,6 +317,64 @@ class Subtopic(Base):
 # =========================
 # Question Bank boundary (P0-009 / P0-010)
 # =========================
+
+class SyllabusReview(Base):
+    __tablename__ = "syllabus_reviews"
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(24), nullable=False, default="DRAFT")
+    version = Column(Integer, nullable=False, default=1)
+    base_revision = Column(Integer, nullable=False)
+    base_hash = Column(String(64), nullable=False)
+    base_nodes = Column(JSON, nullable=False)
+    proposed_nodes = Column(JSON, nullable=False)
+    summary = Column(String(1000), nullable=False, default="")
+    decision_comment = Column(String(2000), nullable=False, default="")
+    decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class SyllabusSubjectReview(Base):
+    __tablename__ = "syllabus_subject_reviews"
+    __table_args__ = (UniqueConstraint("review_id", "subject_key", name="uq_subject_review_branch"),)
+    id = Column(Integer, primary_key=True)
+    review_id = Column(Integer, ForeignKey("syllabus_reviews.id"), nullable=False, index=True)
+    subject_key = Column(String(90), nullable=False)
+    live_subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(String(32), nullable=False, default="NOT_REQUESTED")
+    version = Column(Integer, nullable=False, default=1)
+    source_hash = Column(String(64), nullable=False, default="")
+    source_nodes = Column(JSON, nullable=False, default=list)
+    proposed_nodes = Column(JSON, nullable=False, default=list)
+    comment = Column(String(2000), nullable=False, default="")
+    decision_comment = Column(String(2000), nullable=False, default="")
+    requested_at = Column(DateTime(timezone=True), nullable=True)
+    recommended_at = Column(DateTime(timezone=True), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
+class SyllabusRevision(Base):
+    __tablename__ = "syllabus_revisions"
+    __table_args__ = (UniqueConstraint("course_id", "number", name="uq_syllabus_revision"),)
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    number = Column(Integer, nullable=False)
+    nodes = Column(JSON, nullable=False)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    review_id = Column(Integer, ForeignKey("syllabus_reviews.id"), nullable=False)
+    summary = Column(String(1000), nullable=False)
+    course_title = Column(String(200), nullable=False)
+    programme_code = Column(String(80), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
 
 class Question(Base):
     __tablename__ = "questions"
@@ -754,6 +850,34 @@ class TopicWeightage(Base):
     syllabus_importance = Column(Float, nullable=True, default=0.5)
 
 
+class UnitWeightage(Base):
+    """Importance of one unit relative to its sibling units in a subject."""
+    __tablename__ = "unit_weightages"
+    __table_args__ = (
+        UniqueConstraint("subject_id", "unit_id", name="uq_subject_unit_weight"),
+        CheckConstraint("weight_percent >= 0 AND weight_percent <= 100", name="ck_unit_weight_percent"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id", ondelete="CASCADE"), nullable=False, index=True)
+    weight_percent = Column(Float, nullable=False)
+
+
+class SubtopicWeightage(Base):
+    """Importance of one subtopic relative to sibling subtopics in a topic."""
+    __tablename__ = "subtopic_weightages"
+    __table_args__ = (
+        UniqueConstraint("topic_id", "subtopic_id", name="uq_topic_subtopic_weight"),
+        CheckConstraint("weight_percent >= 0 AND weight_percent <= 100", name="ck_subtopic_weight_percent"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), nullable=False, index=True)
+    subtopic_id = Column(Integer, ForeignKey("subtopics.id", ondelete="CASCADE"), nullable=False, index=True)
+    weight_percent = Column(Float, nullable=False)
+
+
 class PriorityWeightConfig(Base):
     """Configurable factor weights for topic priority (must sum ≈ 1.0)."""
     __tablename__ = "priority_weight_configs"
@@ -1204,6 +1328,40 @@ class StudentSubjectFocus(Base):
 # =========================
 # Resource Model
 # =========================
+
+class AIProviderSettings(Base):
+    __tablename__ = "ai_provider_settings"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_ai_settings_singleton"),)
+    id = Column(Integer, primary_key=True)
+    label = Column(String(100), nullable=False)
+    protocol = Column(String(32), nullable=False)
+    base_url = Column(String(500), nullable=False)
+    model = Column(String(160), nullable=False)
+    encrypted_key = Column(Text, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=False)
+    daily_requests = Column(Integer, nullable=False)
+    daily_tokens = Column(Integer, nullable=False)
+    minute_requests = Column(Integer, nullable=False)
+    minute_tokens = Column(Integer, nullable=False)
+    student_daily_requests = Column(Integer, nullable=False)
+    max_output_tokens = Column(Integer, nullable=False)
+    revision = Column(Integer, nullable=False, default=0)
+
+
+class AIUsageEvent(Base):
+    __tablename__ = "ai_usage_events"
+    id = Column(Integer, primary_key=True)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    provider_label = Column(String(100), nullable=False)
+    model = Column(String(160), nullable=False)
+    purpose = Column(String(64), nullable=False)
+    status = Column(String(20), nullable=False)
+    budget_tokens = Column(Integer, nullable=False)
+    total_tokens = Column(Integer, nullable=True)
+    error_code = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
 
 class Resource(Base):
     __tablename__ = "resources"

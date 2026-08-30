@@ -1,0 +1,3 @@
+# Install alongside the application's existing backend requirements.
+cryptography>=46.0.0,<47
+httpx>=0.27,<1

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app import models, roles
 from app.services import notifications as notif_svc
+from app.services.course_enrollments import has_learning_access
 
 
 def _utcnow() -> datetime:
@@ -29,20 +30,18 @@ def _norm(ans: Optional[str]) -> str:
 
 
 def is_student_enrolled(db: Session, student_id: int, course_id: int) -> bool:
-    return (
-        db.query(models.StudentCourseEnrollment)
-        .filter(
-            models.StudentCourseEnrollment.student_id == student_id,
-            models.StudentCourseEnrollment.course_id == course_id,
-        )
-        .first()
-        is not None
-    )
+    return has_learning_access(db, student_id, course_id)
 
 
 def ensure_enrollment(db: Session, student_id: int, course_id: int) -> None:
+    course = db.query(models.Course).filter_by(id=course_id).first()
+    if not course or course.publication_status != "PUBLISHED" or not course.is_active or not course.self_enrollment_enabled:
+        raise HTTPException(403, "Self-enrollment requires an available published course with self-enrollment enabled")
+    existing = db.query(models.StudentCourseEnrollment).filter_by(student_id=student_id, course_id=course_id).first()
+    if existing and existing.status != "ACTIVE":
+        raise HTTPException(409, "Ask an administrator to activate or review your existing assignment")
     if not is_student_enrolled(db, student_id, course_id):
-        db.add(models.StudentCourseEnrollment(student_id=student_id, course_id=course_id))
+        db.add(models.StudentCourseEnrollment(student_id=student_id, course_id=course_id, status="ACTIVE", enrollment_source="SELF"))
         db.commit()
 
 
@@ -210,6 +209,8 @@ def get_attempt_for_user(
         raise HTTPException(status_code=404, detail="Attempt not found")
     role = (user.role or "").lower()
     if attempt.student_id == user.id:
+        if attempt.status == "IN_PROGRESS" and not is_student_enrolled(db, user.id, attempt.assessment.course_id):
+            raise HTTPException(403, "Active enrollment in a published course is required")
         return maybe_auto_submit(db, attempt) if attempt.status == "IN_PROGRESS" else attempt
     if allow_staff and (roles.is_admin_role(role) or role == roles.FACULTY):
         return attempt

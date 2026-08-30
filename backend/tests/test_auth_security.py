@@ -6,6 +6,8 @@ import os
 import sys
 import unittest
 import uuid
+import tempfile
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -279,6 +281,75 @@ class AuthenticationSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["id"], user.id)
         self.assertTrue(response.json()["is_active"])
+
+    def test_student_and_faculty_can_update_only_personal_profile_fields(self):
+        for role in (roles.STUDENT, roles.FACULTY):
+            with self.subTest(role=role):
+                user, password = self._create_user(role)
+                token = self._login(user, password)
+                mobile = f"+9198{user.id:08d}"
+                response = self.client.patch(
+                    "/auth/me/profile",
+                    headers=self._auth(token),
+                    json={"mobile_number": mobile},
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["mobile_number"], mobile)
+                self.assertFalse(response.json()["mobile_verified"])
+                forbidden = self.client.patch(
+                    "/auth/me/profile",
+                    headers=self._auth(token),
+                    json={"name": "Changed outside master data"},
+                )
+                self.assertEqual(forbidden.status_code, 422, forbidden.text)
+
+    def test_self_service_profile_photo_is_validated_and_removable(self):
+        user, password = self._create_user(roles.STUDENT)
+        token = self._login(user, password)
+        original_directory = auth.PROFILE_PHOTO_DIRECTORY
+        with tempfile.TemporaryDirectory() as directory:
+            auth.PROFILE_PHOTO_DIRECTORY = Path(directory)
+            try:
+                upload = self.client.post(
+                    "/auth/me/photo",
+                    headers=self._auth(token),
+                    files={"photo": ("portrait.png", b"\x89PNG\r\n\x1a\nSYS", "image/png")},
+                )
+                self.assertEqual(upload.status_code, 200, upload.text)
+                self.assertRegex(upload.json()["photo_url"], rf"^/photos/student-{user.id}-[a-f0-9]{{12}}\.png$")
+                stored = Path(directory) / Path(upload.json()["photo_url"]).name
+                self.assertTrue(stored.is_file())
+                removed = self.client.delete("/auth/me/photo", headers=self._auth(token))
+                self.assertEqual(removed.status_code, 200, removed.text)
+                self.assertIsNone(removed.json()["photo_url"])
+                self.assertFalse(stored.exists())
+            finally:
+                auth.PROFILE_PHOTO_DIRECTORY = original_directory
+
+    def test_administrator_cannot_use_student_faculty_self_service_profile(self):
+        user, password = self._create_user(roles.ADMIN)
+        token = self._login(user, password)
+        response = self.client.patch(
+            "/auth/me/profile",
+            headers=self._auth(token),
+            json={"mobile_number": "+919876543210"},
+        )
+        self.assertEqual(response.status_code, 403, response.text)
+
+    def test_me_and_dashboard_resolve_existing_convention_based_photo(self):
+        user, password = self._create_user(roles.STUDENT)
+        token = self._login(user, password)
+        original_directory = auth.PROFILE_PHOTO_DIRECTORY
+        with tempfile.TemporaryDirectory() as directory:
+            auth.PROFILE_PHOTO_DIRECTORY = Path(directory)
+            try:
+                photo = Path(directory) / f"student-{user.roll_number}.jpg"
+                photo.write_bytes(b"legacy-profile-photo")
+                me = self.client.get("/auth/me", headers=self._auth(token))
+                self.assertEqual(me.status_code, 200, me.text)
+                self.assertEqual(me.json()["photo_url"], f"/photos/{photo.name}")
+            finally:
+                auth.PROFILE_PHOTO_DIRECTORY = original_directory
 
 
 if __name__ == "__main__":

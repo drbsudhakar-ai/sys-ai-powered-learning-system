@@ -16,8 +16,9 @@ function BoardElement({ el, visible }) {
     return <h2 className="lecture-heading animate-reveal">{el.text}</h2>;
   }
   if (t === "bullet") {
-    return <li className="lecture-bullet animate-reveal">{el.text}</li>;
+    return <p className="lecture-bullet animate-reveal">• {el.text}</p>;
   }
+  if (t === "flow") return <ol className="lecture-flow" aria-label="Step-by-step process">{(el.labels || []).map((label, index) => <li key={index}><span>{index + 1}</span>{label}</li>)}</ol>;
   if (t === "text" || t === "label") {
     return <p className="lecture-text animate-reveal">{el.text}</p>;
   }
@@ -111,11 +112,11 @@ export default function DigitalTeachingBoard({
           </div>
         ) : null}
 
-        <ul className="digital-board-elements">
+        <div className="digital-board-elements">
           {elements.map((el, idx) => (
             <BoardElement key={el.id || idx} el={el} visible={idx < revealed} />
           ))}
-        </ul>
+        </div>
 
         {step?.interaction?.prompt ? (
           <div className="lecture-check animate-reveal">

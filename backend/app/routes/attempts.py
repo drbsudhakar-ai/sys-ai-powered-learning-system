@@ -56,7 +56,7 @@ def list_student_assessments(
         .filter(models.StudentCourseEnrollment.student_id == current_user.id)
         .all()
     )
-    course_ids = [e.course_id for e in enrollments]
+    course_ids = [e.course_id for e in enrollments if eng.is_student_enrolled(db, current_user.id, e.course_id)]
     if course_id is not None:
         if course_id not in course_ids:
             raise HTTPException(status_code=403, detail="Not enrolled in course")

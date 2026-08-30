@@ -7,8 +7,10 @@ SYS AI Lecturer Backend
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app import models, database
-from app.routes import auth, courses, assessments, resources, admin, admin_management, curriculum, reporting, question_bank, intelligence, attempts, analyzer, learning_sessions, remedial, mastery, analytics, learning_journey
-from app.routes import students, faculty
+from app.routes import auth, courses, course_enrollments, assessments, resources, admin, admin_management, curriculum, reporting, question_bank, intelligence, attempts, analyzer, learning_sessions, remedial, mastery, analytics, learning_journey
+from app.routes import students, faculty, ai_management
+from app.routes import syllabus_review
+from app.routes import syllabus_subjects
 from app.routes import auth as auth_routes
 
 # Create DB tables (Alembic recommended for production migrations)
@@ -43,7 +45,11 @@ app.add_middleware(
 # Routers
 # =========================
 app.include_router(auth_routes.router)
+app.include_router(ai_management.router)
+app.include_router(syllabus_review.router)
+app.include_router(syllabus_subjects.router)
 app.include_router(courses.router)
+app.include_router(course_enrollments.router)
 app.include_router(assessments.router)
 app.include_router(resources.router)
 app.include_router(admin.router)

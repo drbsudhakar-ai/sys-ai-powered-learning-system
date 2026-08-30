@@ -59,8 +59,9 @@ export function roleLandingPath(role) {
     case "admin":
       return "/admin-dashboard";
     case "faculty":
+      return "/faculty-dashboard";
     case "student":
-      return "/dashboard";
+      return "/student-dashboard";
     default:
       return null;
   }

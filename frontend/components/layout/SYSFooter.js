@@ -39,23 +39,23 @@ export default function SYSFooter({
             className="sys-footer-logo-link"
             aria-label="SYS – Strengthen Your Skills"
           >
-            <Image
-              src="/branding/sys-v2/logos/SYS_Header_Logo_Dark.png"
-              alt="SYS – Strengthen Your Skills"
-              width={330}
-              height={92}
-              className="sys-footer-logo"
-            />
+            <span className="sys-footer-mark">
+              <Image
+                src="/branding/sys-v2/logos/SYS_Symbol_Compact_Transparent.png"
+                alt=""
+                width={48}
+                height={48}
+                className="sys-footer-logo"
+              />
+            </span>
+            <span className="sys-footer-brand-copy">
+              <strong>SYS – Strengthen Your Skills</strong>
+              <small>AI-Powered Learning Platform</small>
+            </span>
           </Link>
 
-          <p className="sys-footer-tagline">
-            Shape Your Successful Future.
-          </p>
-
           <p className="sys-footer-description">
-            AI-powered learning, assessment and student support designed to
-            help learners strengthen their skills and progress with
-            confidence.
+            AI-powered learning, assessment and student support in one connected journey.
           </p>
         </div>
 
@@ -101,7 +101,8 @@ export default function SYSFooter({
           reserved.
         </span>
 
-        <span>AI-powered learning and student support platform.</span>
+        <span>Conceived and developed by <strong>Dr. Sudhakar Bolleddu</strong></span>
+        <span>Shape Your Successful Future.</span>
       </div>
 
       <style jsx>{`
@@ -126,10 +127,10 @@ export default function SYSFooter({
         .sys-footer-main {
           width: min(1180px, calc(100% - 48px));
           margin: 0 auto;
-          padding: 64px 0 50px;
+          padding: 30px 0 24px;
           display: grid;
           grid-template-columns: 2fr 1fr 1.25fr;
-          gap: 55px;
+          gap: 42px;
         }
 
         .sys-footer-brand {
@@ -138,40 +139,62 @@ export default function SYSFooter({
 
         .sys-footer-logo-link {
           display: inline-flex;
+          align-items: center;
+          gap: 11px;
           text-decoration: none;
+        }
+
+        .sys-footer-mark {
+          width: 50px;
+          height: 50px;
+          display: grid;
+          place-items: center;
+          flex: 0 0 50px;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 12px;
+          background: #fff;
         }
 
         .sys-footer-logo {
           display: block;
-          width: 255px;
-          height: auto;
+          width: 43px;
+          height: 43px;
           object-fit: contain;
         }
 
-        .sys-footer-tagline {
-          margin: 15px 0 0;
-          color: #b58cff;
-          font-size: 14px;
-          font-weight: 700;
+        .sys-footer-brand-copy {
+          display: grid;
+          gap: 4px;
+        }
+
+        .sys-footer-brand-copy strong {
+          color: #fff;
+          font-size: 13px;
+          line-height: 1.2;
+        }
+
+        .sys-footer-brand-copy small {
+          color: #aebde0;
+          font-size: 9px;
         }
 
         .sys-footer-description {
           max-width: 370px;
-          margin: 14px 0 0;
+          margin: 11px 0 0;
           color: #9da5c5;
           font-size: 13px;
-          line-height: 1.75;
+          line-height: 1.6;
         }
 
         .sys-footer-column {
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          gap: 12px;
+          gap: 8px;
         }
 
         .sys-footer-column h3 {
-          margin: 0 0 8px;
+          margin: 0 0 4px;
           color: #ffffff;
           font-size: 14px;
           font-weight: 800;
@@ -206,7 +229,7 @@ export default function SYSFooter({
         .sys-footer-bottom {
           width: min(1180px, calc(100% - 48px));
           margin: 0 auto;
-          padding: 19px 0 23px;
+          padding: 13px 0 15px;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
           display: flex;
           align-items: center;
@@ -217,10 +240,15 @@ export default function SYSFooter({
           line-height: 1.5;
         }
 
+        .sys-footer-bottom strong {
+          color: #c7d0e6;
+          font-weight: 700;
+        }
+
         @media (max-width: 900px) {
           .sys-footer-main {
             grid-template-columns: 1.5fr 1fr 1fr;
-            gap: 40px 30px;
+            gap: 28px;
           }
 
           .sys-footer-brand {
@@ -233,16 +261,12 @@ export default function SYSFooter({
           .sys-footer-main {
             width: calc(100% - 32px);
             grid-template-columns: repeat(2, 1fr);
-            padding: 48px 0 35px;
-            gap: 38px 25px;
+            padding: 27px 0 22px;
+            gap: 26px 22px;
           }
 
           .sys-footer-brand {
             grid-column: 1 / -1;
-          }
-
-          .sys-footer-logo {
-            width: 220px;
           }
 
           .sys-footer-bottom {

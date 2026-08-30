@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { getCourses, getMe, getMyProgrammes, getApiErrorMessage, enrollInCourse } from "../../src/api";
 import { clearSession, getToken, isStaffRole, redirectToLogin } from "../../src/auth";
+import StudentCoursesWorkspace from "../../components/auth/StudentCoursesWorkspace";
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -12,6 +13,11 @@ export default function CoursesPage() {
   const [error, setError] = useState("");
   const [enrolledIds, setEnrolledIds] = useState([]);
   const [enrolling, setEnrolling] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  async function refreshAssignments() {
+    const { data } = await getMyProgrammes();
+    setAssignments(data.enrollments || []);
+  }
 
   useEffect(() => {
     if (!getToken()) {
@@ -30,6 +36,7 @@ export default function CoursesPage() {
         if ((me.data.role || "").toLowerCase() === "student") {
           const mine = await getMyProgrammes();
           setEnrolledIds((mine.data.enrollments || []).map((c) => c.id));
+          setAssignments(mine.data.enrollments || []);
         }
       } catch (err) {
         if (err.response?.status === 401) {
@@ -47,6 +54,7 @@ export default function CoursesPage() {
   }, []);
 
   const staff = isStaffRole(user?.role);
+  if (user?.role?.toLowerCase() === "student") return <StudentCoursesWorkspace assignments={assignments} catalog={courses} loading={loading} error={error} onEnrolled={refreshAssignments} />;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -131,13 +139,18 @@ export default function CoursesPage() {
                     <button
                       type="button"
                       className="btn-primary"
-                      disabled={enrolling === course.id || enrolledIds.includes(course.id)}
+                      disabled={enrolling === course.id}
                       onClick={async () => {
+                        if (enrolledIds.includes(course.id)) {
+                          router.push(`/courses/${course.id}/workspace`);
+                          return;
+                        }
                         setEnrolling(course.id);
                         setError("");
                         try {
                           await enrollInCourse(course.id);
                           setEnrolledIds((prev) => [...prev, course.id]);
+                          router.push(`/courses/${course.id}/workspace`);
                         } catch (err) {
                           setError(getApiErrorMessage(err, "Unable to enroll."));
                         } finally {
@@ -145,7 +158,7 @@ export default function CoursesPage() {
                         }
                       }}
                     >
-                      {enrolledIds.includes(course.id) ? "Enrolled" : "Enroll"}
+                      {enrolledIds.includes(course.id) ? "Open workspace" : "Enroll"}
                     </button>
                   )}
                 </div>

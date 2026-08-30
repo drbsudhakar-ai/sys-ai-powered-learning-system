@@ -7,6 +7,7 @@ export default function AskLecturerPanel({ open, onSubmit, busy }) {
   return (
     <aside className="ask-lecturer-panel" aria-label="Ask the lecturer">
       <p className="ask-lecturer-title">Ask without leaving the board</p>
+      <p>Your free-text question is sent to the administrator-configured AI provider and saved in your SYS learning evidence. Do not include personal or sensitive information.</p>
       <div className="ask-lecturer-intents">
         {[
           ["ASK", "Ask"],
@@ -25,19 +26,22 @@ export default function AskLecturerPanel({ open, onSubmit, busy }) {
         ))}
       </div>
       <textarea
+        aria-label="Your question for the AI Lecturer"
+        maxLength={2000}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         rows={3}
         placeholder="Optional details…"
         className="ask-lecturer-input"
       />
+      <small>{message.length} / 2000 characters</small>
       <button
         type="button"
         className="btn-primary"
         disabled={busy}
-        onClick={() => {
-          onSubmit({ intent, message });
-          setMessage("");
+        onClick={async () => {
+          const succeeded = await onSubmit({ intent, message });
+          if (succeeded) setMessage("");
         }}
       >
         {busy ? "Teaching…" : "Send to board"}

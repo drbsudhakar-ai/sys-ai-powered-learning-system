@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import csv
-import io
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -15,6 +14,8 @@ from app import database, models, schemas
 from app.routes.auth import require_roles, require_super_admin
 from app.services import admin_management as management
 from app.services import authentication as auth_service
+from app.services.master_spreadsheet import build_master_workbook
+from app.services.master_profile_pdf import build_master_profile_pdf
 
 
 router = APIRouter(prefix="/admin", tags=["Admin Management"])
@@ -53,7 +54,7 @@ STUDENT_SORTS = {
     "college": (models.User.college, True),
     "admission_year": (models.User.admission_year, False),
     "present_year": (models.User.present_year, False),
-    "registration_status": (models.User.account_status, True),
+    "registration_status": (management.registration_status_expression(), True),
     "academic_status": (models.User.academic_status, True),
     "created_at": (models.User.created_at, False),
 }
@@ -65,7 +66,7 @@ FACULTY_SORTS = {
     "college": (models.User.college, True),
     "department": (models.User.department, True),
     "designation": (models.User.designation, True),
-    "registration_status": (models.User.account_status, True),
+    "registration_status": (management.registration_status_expression(), True),
     "employment_status": (models.User.employment_status, True),
     "created_at": (models.User.created_at, False),
 }
@@ -122,17 +123,14 @@ def _apply_common_filters(
             )
         )
     if registration_status:
-        query = query.filter(models.User.account_status == registration_status)
+        query = query.filter(management.registration_status_predicate(registration_status))
     if college and college.strip():
         query = query.filter(management.escaped_contains(models.User.college, college.strip()))
 
     if status_value == "pending_registration":
-        query = query.filter(models.User.account_status == auth_service.ACCOUNT_PENDING)
+        query = query.filter(management.pending_registration_predicate())
     elif status_value == "active":
-        query = query.filter(
-            models.User.is_active.is_(True),
-            models.User.account_status == auth_service.ACCOUNT_ACTIVE,
-        )
+        query = query.filter(management.registered_account_predicate())
     elif status_value == "inactive":
         query = query.filter(
             or_(
@@ -437,30 +435,50 @@ def bulk_faculty_assignment(
     return schemas.AdminBulkResultOut(succeeded=succeeded, failed=len(results) - succeeded, results=results)
 
 
-def _csv_safe(value) -> str:
-    text = "" if value is None else str(value)
-    if text.startswith(("=", "+", "-", "@")):
-        return f"'{text}"
-    return text
+def _export_filter_summary(request: Request, role: str) -> str:
+    labels = {
+        "search": "Search",
+        "status": "Status",
+        "registration_status": "Registration",
+        "college": "College",
+        "programme_id": "SYS programme ID",
+        "admission_year": "Admission year",
+        "present_year": "Present year",
+        "academic_status": "Academic status",
+        "department": "Department",
+        "designation": "Designation",
+        "employment_status": "Employment status",
+        "responsibility": "Responsibility",
+    }
+    filters = [
+        f"{labels[key]}: {value}"
+        for key, value in request.query_params.multi_items()
+        if key in labels and value and not (key == "status" and value.lower() == "all")
+    ]
+    return " | ".join(filters) if filters else f"All {role}s" if role == "student" else "All faculty"
 
 
-def _csv_response(role: str, records: list[schemas.AdminMasterRecordOut]) -> Response:
-    stream = io.StringIO(newline="")
-    writer = csv.writer(stream)
+def _excel_response(
+    role: str,
+    records: list[schemas.AdminMasterRecordOut],
+    *,
+    actor: models.User,
+    request: Request,
+) -> Response:
     if role == "student":
         headers = ["Roll Number", "Name", "Email", "Mobile", "College", "Programme", "Admission Year", "Present Year", "Registration Status", "Academic Status"]
     else:
         headers = ["Employee Code", "Name", "Email", "Mobile", "College", "Department", "Designation", "Registration Status", "Employment Status", "Coordinator Assignments", "Subject Expert Assignments"]
-    writer.writerow(headers)
+    rows = []
     for record in records:
         if role == "student":
             row = [
                 record.roll_number,
                 record.name,
                 record.email,
-                record.mobile_masked,
+                record.mobile_number or record.mobile_masked,
                 record.college,
-                "; ".join(programme.title for programme in record.programmes),
+                record.academic_program or "; ".join(programme.title for programme in record.programmes),
                 record.admission_year,
                 record.present_year,
                 record.registration_status,
@@ -471,7 +489,7 @@ def _csv_response(role: str, records: list[schemas.AdminMasterRecordOut]) -> Res
                 record.employee_code,
                 record.name,
                 record.email,
-                record.mobile_masked,
+                record.mobile_number or record.mobile_masked,
                 record.college,
                 record.department,
                 record.designation,
@@ -480,11 +498,28 @@ def _csv_response(role: str, records: list[schemas.AdminMasterRecordOut]) -> Res
                 record.coordinator_assignments,
                 record.subject_expert_assignments,
             ]
-        writer.writerow([_csv_safe(value) for value in row])
-    filename = f"SYS_{role}_master_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
+        rows.append(row)
+    generated_at = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    active_count = sum(record.registration_status.upper() == "ACTIVE" and record.is_active for record in records)
+    pending_count = sum(record.registration_status.upper().startswith("PENDING") for record in records)
+    inactive_count = sum(not record.is_active for record in records)
+    workbook = build_master_workbook(
+        title=f"SYS {role.title()} Master",
+        headers=headers,
+        rows=rows,
+        text_columns={0, 3},
+        report={
+            "title": f"{role.upper()} MASTER REPORT",
+            "generated_at": f"{generated_at.strftime('%d %b %Y, %I:%M:%S %p')} IST",
+            "generated_by": actor.name or actor.email or "SYS Administrator",
+            "summary": f"Total records: {len(records)}    |    Active: {active_count}    |    Pending registration: {pending_count}    |    Inactive: {inactive_count}",
+            "filters": _export_filter_summary(request, role),
+        },
+    )
+    filename = f"SYS_{role}_master_{generated_at.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"
     return Response(
-        content=stream.getvalue(),
-        media_type="text/csv; charset=utf-8",
+        content=workbook,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -505,13 +540,13 @@ def export_student_master(
     page: int = Query(1, ge=1),
     page_size: int = Query(25),
     db: Session = Depends(database.get_db),
-    _: models.User = Depends(_admin),
+    actor: models.User = Depends(_admin),
 ):
     _reject_unknown_query_fields(request, STUDENT_QUERY_FIELDS)
     _validate_common(status_value=status_value, registration_status=registration_status, sort=sort, order=order, page_size=page_size, sort_fields=STUDENT_SORTS)
     query = _student_query(db, search=search, status_value=status_value, registration_status=registration_status, college=college, programme_id=programme_id, admission_year=admission_year, present_year=present_year, academic_status=academic_status)
     rows = _apply_order(query, STUDENT_SORTS, sort, order).all()
-    return _csv_response("student", [management.master_record(db, row) for row in rows])
+    return _excel_response("student", [management.master_record(db, row) for row in rows], actor=actor, request=request)
 
 
 @router.get("/master/faculty/export")
@@ -530,13 +565,66 @@ def export_faculty_master(
     page: int = Query(1, ge=1),
     page_size: int = Query(25),
     db: Session = Depends(database.get_db),
-    _: models.User = Depends(_admin),
+    actor: models.User = Depends(_admin),
 ):
     _reject_unknown_query_fields(request, FACULTY_QUERY_FIELDS)
     _validate_common(status_value=status_value, registration_status=registration_status, sort=sort, order=order, page_size=page_size, sort_fields=FACULTY_SORTS)
     query = _faculty_query(db, search=search, status_value=status_value, registration_status=registration_status, college=college, department=department, designation=designation, employment_status=employment_status, responsibility=responsibility)
     rows = _apply_order(query, FACULTY_SORTS, sort, order).all()
-    return _csv_response("faculty", [management.master_record(db, row) for row in rows])
+    return _excel_response("faculty", [management.master_record(db, row) for row in rows], actor=actor, request=request)
+
+
+def _profile_user(db: Session, user_id: int, role: str) -> models.User:
+    user = db.query(models.User).filter(models.User.id == user_id, models.User.role == role).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail=f"{role.capitalize()} not found")
+    return user
+
+
+def _profile_pdf_response(db: Session, user: models.User, actor: models.User) -> Response:
+    profile = management.master_profile(db, user)
+    content = build_master_profile_pdf(profile, generated_by=actor.name or actor.email or "SYS Administrator")
+    identifier = user.roll_number if user.role == "student" else user.employee_code
+    safe_identifier = re.sub(r"[^A-Za-z0-9_-]", "_", identifier or str(user.id))
+    timestamp = datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%Y-%m-%d")
+    filename = f"SYS_{user.role.title()}_Profile_{safe_identifier}_{timestamp}.pdf"
+    return Response(content=content, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/master/students/{student_id}/profile", response_model=schemas.AdminMasterProfileOut)
+def get_student_master_profile(
+    student_id: int,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(_admin),
+):
+    return management.master_profile(db, _profile_user(db, student_id, "student"))
+
+
+@router.get("/master/students/{student_id}/profile.pdf")
+def download_student_master_profile(
+    student_id: int,
+    db: Session = Depends(database.get_db),
+    actor: models.User = Depends(_admin),
+):
+    return _profile_pdf_response(db, _profile_user(db, student_id, "student"), actor)
+
+
+@router.get("/master/faculty/{faculty_id}/profile", response_model=schemas.AdminMasterProfileOut)
+def get_faculty_master_profile(
+    faculty_id: int,
+    db: Session = Depends(database.get_db),
+    _: models.User = Depends(_admin),
+):
+    return management.master_profile(db, _profile_user(db, faculty_id, "faculty"))
+
+
+@router.get("/master/faculty/{faculty_id}/profile.pdf")
+def download_faculty_master_profile(
+    faculty_id: int,
+    db: Session = Depends(database.get_db),
+    actor: models.User = Depends(_admin),
+):
+    return _profile_pdf_response(db, _profile_user(db, faculty_id, "faculty"), actor)
 
 
 def _readiness_item(key: str, label: str, complete: bool | None, detail: str) -> dict:
@@ -553,10 +641,10 @@ def operations_summary(
     faculty = db.query(models.User).filter(models.User.role == "faculty")
     student_total = students.count()
     faculty_total = faculty.count()
-    student_active = students.filter(models.User.is_active.is_(True), models.User.account_status == auth_service.ACCOUNT_ACTIVE).count()
-    faculty_active = faculty.filter(models.User.is_active.is_(True), models.User.account_status == auth_service.ACCOUNT_ACTIVE).count()
-    student_pending = students.filter(models.User.account_status == auth_service.ACCOUNT_PENDING).count()
-    faculty_pending = faculty.filter(models.User.account_status == auth_service.ACCOUNT_PENDING).count()
+    student_active = students.filter(management.registered_account_predicate()).count()
+    faculty_active = faculty.filter(management.registered_account_predicate()).count()
+    student_pending = students.filter(management.pending_registration_predicate()).count()
+    faculty_pending = faculty.filter(management.pending_registration_predicate()).count()
 
     active_courses = db.query(models.Course).filter(models.Course.is_active.is_(True)).count()
     draft_courses = db.query(models.Course).filter(models.Course.is_active.is_(False)).count()

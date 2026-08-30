@@ -10,9 +10,12 @@
 .shellCollapsed { --sidebar-width: 84px; }
 .sidebar { position: sticky; top: 0; z-index: 40; height: 100vh; min-width: 0; display: flex; flex-direction: column; overflow: hidden; color: #e7edfb; background: #071b43; border-right: 1px solid rgb(143 166 218 / 18%); }
 .sidebarBrand { min-height: 86px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid rgb(255 255 255 / 9%); }
-.sidebarBrand > a { min-width: 0; display: inline-flex; align-items: center; }
-.sidebarLogo { width: 218px; height: auto; object-fit: contain; }
-.compactLogo { display: none; width: 44px; height: auto; object-fit: contain; }
+.sidebarBrand > a { min-width: 0; display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; }
+.sidebarBrandMark { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgb(2 20 52 / 28%); }
+.sidebarBrandMark img { width: 40px; height: 40px; object-fit: contain; }
+.sidebarBrandCopy { min-width: 0; display: grid; gap: 4px; }
+.sidebarBrandCopy strong { color: #fff; font-size: .72rem; line-height: 1.25; }
+.sidebarBrandCopy small { color: #9eacd0; font-size: .56rem; }
 .drawerClose { display: none; width: 44px; height: 44px; place-items: center; flex: 0 0 auto; border: 1px solid rgb(255 255 255 / 14%); border-radius: 9px; color: #fff; background: rgb(255 255 255 / 7%); }
 .drawerClose svg { width: 22px; }
 .sidebarNav { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px 12px 22px; scrollbar-width: thin; }
@@ -41,8 +44,8 @@
 .sidebarFoot > button svg { width: 19px; min-width: 19px; }
 .shellCollapsed .sidebarBrand { padding-inline: 20px; }
 .shellCollapsed .sidebarBrand a { margin-inline: auto; }
-.shellCollapsed .sidebarLogo { display: none; }
-.shellCollapsed .compactLogo { display: block; }
+.shellCollapsed .sidebarBrandCopy { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.shellCollapsed .sidebarBrandMark { width: 44px; height: 44px; flex-basis: 44px; }
 .shellCollapsed .navGroupToggle { grid-template-columns: 1fr; justify-items: center; }
 .shellCollapsed .navGroupToggle span, .shellCollapsed .navGroupToggle > svg:last-child, .shellCollapsed .navItems a span, .shellCollapsed .sidebarIdentity, .shellCollapsed .sidebarFoot > button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .shellCollapsed .navItems a { grid-template-columns: 1fr; justify-items: center; margin-left: 0; padding-inline: 0; }
@@ -52,6 +55,7 @@
 .topbar { position: sticky; top: 0; z-index: 30; min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 9px clamp(18px, 3vw, 40px); border-bottom: 1px solid #dde4ee; background: rgb(255 255 255 / 96%); backdrop-filter: blur(12px); }
 .topbarContext { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .topbarContext p { margin: 0; overflow: hidden; color: #283854; font-size: .77rem; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+.topbarContext p a { color: #2859a8; text-decoration: none; }.topbarContext p a:hover { text-decoration: underline; }.topbarContext p b { font-weight: 760; }
 .topbarContext p span { margin: 0 5px; color: #a0a9b9; }
 .topbarContext div > span { display: block; margin-top: 4px; overflow: hidden; color: #7a869a; font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
 .mobileMenu { display: none; width: 44px; height: 44px; place-items: center; flex: 0 0 auto; border: 1px solid #d4ddea; border-radius: 9px; color: #2e3f5c; background: #fff; }
@@ -189,8 +193,7 @@
   .adminShell, .shellCollapsed { --sidebar-width: 84px; }
   .sidebarBrand { padding-inline: 20px; }
   .sidebarBrand a { margin-inline: auto; }
-  .sidebarLogo { display: none; }
-  .compactLogo { display: block; }
+  .sidebarBrandCopy { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .navGroupToggle { grid-template-columns: 1fr; justify-items: center; }
   .navGroupToggle span, .navGroupToggle > svg:last-child, .navItems a span, .sidebarIdentity, .sidebarFoot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .navItems a { grid-template-columns: 1fr; justify-items: center; margin-left: 0; padding-inline: 0; }
@@ -209,8 +212,7 @@
   .sidebar { position: fixed; left: 0; top: 0; width: min(310px, calc(100vw - 48px)); transform: translateX(-105%); transition: transform 180ms ease; box-shadow: 20px 0 45px rgb(5 14 38 / 28%); }
   .drawerOpen { transform: translateX(0); }
   .sidebarBrand { padding-inline: 18px; }
-  .sidebarLogo, .shellCollapsed .sidebarLogo { display: block; width: 210px; height: auto; }
-  .compactLogo, .shellCollapsed .compactLogo { display: none; }
+  .sidebarBrandCopy, .shellCollapsed .sidebarBrandCopy { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .shellCollapsed .sidebarBrand a { margin-inline: 0; }
   .shellCollapsed .navGroupToggle { grid-template-columns: 21px minmax(0, 1fr) 16px; justify-items: initial; }
   .shellCollapsed .navGroupToggle span, .shellCollapsed .navGroupToggle > svg:last-child, .shellCollapsed .navItems a span, .shellCollapsed .sidebarIdentity { position: static; width: auto; height: auto; overflow: visible; clip: auto; }

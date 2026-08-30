@@ -88,7 +88,8 @@ def _can_view_course_remedial(db: Session, user: models.User, course_id: int) ->
         )
         .first()
     )
-    return bool(enr)
+    from app.services.course_enrollments import has_learning_access
+    return bool(enr) and has_learning_access(db, user.id, course_id)
 
 
 def _subject_for_topic(db: Session, topic_id: Optional[int]) -> Optional[int]:

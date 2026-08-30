@@ -393,6 +393,16 @@ def open_lecture(
     return lecturer.open_lecture(db, current_user, session_id)
 
 
+@router.get("/{session_id}/lecture/questions")
+def lecture_questions(session_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    return lecturer.question_history(db, current_user, session_id)
+
+
+@router.get("/{session_id}/lecture/roster")
+def lecture_roster(session_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    return lecturer.classroom_roster(db, current_user, session_id)
+
+
 @router.get("/{session_id}/lecture", response_model=schemas.LectureStateOut)
 def get_lecture(
     session_id: int,

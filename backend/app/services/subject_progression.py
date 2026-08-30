@@ -63,6 +63,9 @@ def _authorize_faculty_course(db: Session, actor: models.User, course_id: int) -
 
 
 def _require_enrollment(db: Session, student_id: int, course_id: int) -> None:
+    from app.services.course_enrollments import has_learning_access
+    if not has_learning_access(db, student_id, course_id):
+        raise _http(403, "Active enrollment in a published course is required")
     enr = (
         db.query(models.StudentCourseEnrollment)
         .filter(

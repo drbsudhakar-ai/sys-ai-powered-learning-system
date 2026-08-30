@@ -54,6 +54,13 @@ class AssessmentAttemptTests(unittest.TestCase):
         )
         assert course.status_code == 201, course.text
         cls.course_id = course.json()["id"]
+        # Isolate attempt tests from the separately tested publication workflow.
+        with database.SessionLocal() as db:
+            fixture = db.get(models.Course, cls.course_id)
+            fixture.publication_status = "PUBLISHED"
+            fixture.is_active = True
+            fixture.self_enrollment_enabled = True
+            db.commit()
 
         assign = client.post(
             "/admin/course-coordinators",

@@ -41,12 +41,12 @@ function ForceVectors({ playing }) {
         <sphereGeometry args={[0.08, 16, 16]} />
         <meshStandardMaterial color="#fb8c00" />
       </mesh>
-      <AxisArrow dir={[1, 0.15, 0]} color="#1e88e5" />
-      <AxisArrow dir={[0.2, 1, 0]} color="#43a047" length={1.1} />
-      <Html position={[1.35, 0.25, 0]} center>
-        <span className="r3f-label">F</span>
+      <group position={[0, 0.35, 0]}><AxisArrow dir={[1, 0, 0]} color="#1e88e5" /></group>
+      <group position={[0, -0.35, 0]}><AxisArrow dir={[1, 0, 0]} color="#43a047" length={1.1} /></group>
+      <Html position={[1.5, 0.35, 0]} center>
+        <span className="r3f-label">Net F</span>
       </Html>
-      <Html position={[0.25, 1.15, 0]} center>
+      <Html position={[1.2, -0.35, 0]} center>
         <span className="r3f-label">a</span>
       </Html>
     </group>
@@ -115,6 +115,7 @@ export default function Visual3D({ step, playing }) {
 
   return (
     <div className="visual3d-wrap" role="img" aria-label={`3D model ${model}`}>
+      <small>Schematic illustration · not to scale</small>
       <Canvas camera={{ position: [0, 0.4, 3.2], fov: 45 }} dpr={[1, 1.75]}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[3, 4, 2]} intensity={1.1} />

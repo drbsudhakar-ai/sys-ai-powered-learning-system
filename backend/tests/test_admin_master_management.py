@@ -6,6 +6,11 @@ import os
 import sys
 import unittest
 import uuid
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+from zipfile import ZipFile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -124,6 +129,104 @@ class AdminMasterManagementTests(unittest.TestCase):
             body = client.get("/admin/master/faculty", headers=auth(self.admin.token), params={"search": term}).json()
             self.assertIn(faculty["id"], [item["id"] for item in body["items"]])
 
+    def test_admin_uploads_validated_student_and_faculty_profile_photos(self):
+        student = self._student()
+        faculty = self._faculty()
+        jpeg = b"\xff\xd8\xff\xe0" + (b"SYS" * 20)
+        with TemporaryDirectory() as directory, patch(
+            "app.routes.admin.PROFILE_PHOTO_DIRECTORY", Path(directory)
+        ):
+            for kind, role, record in (("students", "student", student), ("faculty", "faculty", faculty)):
+                uploaded = client.post(
+                    f"/admin/{kind}/{record['id']}/photo",
+                    headers=auth(self.admin.token),
+                    files={"photo": ("profile.jpg", jpeg, "image/jpeg")},
+                )
+                self.assertEqual(uploaded.status_code, 200, uploaded.text)
+                photo_url = uploaded.json()["photo_url"]
+                self.assertRegex(photo_url, rf"^/photos/{role}-{record['id']}-[a-f0-9]{{12}}\.jpg$")
+                self.assertTrue((Path(directory) / Path(photo_url).name).is_file())
+
+                removed = client.delete(
+                    f"/admin/{kind}/{record['id']}/photo", headers=auth(self.admin.token)
+                )
+                self.assertEqual(removed.status_code, 204, removed.text)
+                self.assertFalse((Path(directory) / Path(photo_url).name).exists())
+
+    def test_legacy_active_master_is_pending_and_can_change_contact(self):
+        student = self._student()
+        with database.SessionLocal() as db:
+            row = db.query(models.User).filter(models.User.id == student["id"]).one()
+            row.account_status = "ACTIVE"
+            row.hashed_password = None
+            db.commit()
+
+        detail = client.get(
+            f"/admin/students/{student['id']}", headers=auth(self.admin.token)
+        )
+        self.assertEqual(detail.status_code, 200, detail.text)
+        self.assertFalse(detail.json()["registration_complete"])
+
+        replacement = f"legacy_{uuid.uuid4().hex[:8]}@example.com"
+        updated = client.put(
+            f"/admin/students/{student['id']}",
+            headers=auth(self.admin.token),
+            json={"email": replacement},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["institutional_email"], replacement)
+        self.assertEqual(updated.json()["account_status"], "PENDING_ACTIVATION")
+        self.assertFalse(updated.json()["registration_complete"])
+
+    def test_registered_account_contact_change_remains_protected(self):
+        registered_id = client.get(
+            "/auth/me", headers=auth(self.student.token)
+        ).json()["id"]
+        changed = client.put(
+            f"/admin/students/{registered_id}",
+            headers=auth(self.admin.token),
+            json={"email": f"protected_{uuid.uuid4().hex[:8]}@example.com"},
+        )
+        self.assertEqual(changed.status_code, 409, changed.text)
+        self.assertEqual(changed.json()["detail"], "Verified email changes require account verification")
+
+    def test_existing_identifier_photo_is_returned_to_editor(self):
+        student = self._student()
+        with TemporaryDirectory() as directory, patch(
+            "app.routes.admin.PROFILE_PHOTO_DIRECTORY", Path(directory)
+        ):
+            filename = f"student-{student['roll_number']}.jpg"
+            (Path(directory) / filename).write_bytes(b"\xff\xd8\xff\xe0SYS")
+            detail = client.get(
+                f"/admin/students/{student['id']}", headers=auth(self.admin.token)
+            )
+            self.assertEqual(detail.status_code, 200, detail.text)
+            self.assertEqual(detail.json()["photo_url"], f"/photos/{filename}")
+
+    def test_profile_photo_rejects_wrong_type_content_size_and_non_admin(self):
+        student = self._student()
+        with TemporaryDirectory() as directory, patch(
+            "app.routes.admin.PROFILE_PHOTO_DIRECTORY", Path(directory)
+        ):
+            wrong_type = client.post(
+                f"/admin/students/{student['id']}/photo",
+                headers=auth(self.admin.token),
+                files={"photo": ("profile.gif", b"GIF89a", "image/gif")},
+            )
+            self.assertEqual(wrong_type.status_code, 422, wrong_type.text)
+            spoofed = client.post(
+                f"/admin/students/{student['id']}/photo",
+                headers=auth(self.admin.token),
+                files={"photo": ("profile.jpg", b"not-a-jpeg", "image/jpeg")},
+            )
+            self.assertEqual(spoofed.status_code, 422, spoofed.text)
+            denied = client.post(
+                f"/admin/students/{student['id']}/photo",
+                headers=auth(self.faculty.token),
+                files={"photo": ("profile.jpg", b"\xff\xd8\xff\xe0", "image/jpeg")},
+            )
+            self.assertEqual(denied.status_code, 403, denied.text)
+
     def test_student_filters_combine_before_pagination(self):
         student = self._student(college="Filter College", admission_year=2025, present_year=2, academic_status="INACTIVE")
         course = client.post("/courses/", headers=auth(self.admin.token), json={"title": f"Filter Programme {uuid.uuid4().hex[:6]}"}).json()
@@ -215,8 +318,14 @@ class AdminMasterManagementTests(unittest.TestCase):
         response = client.get("/admin/master/students/export", headers=auth(self.admin.token), params={"search": marker})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertIn("SYS_student_master_", response.headers["content-disposition"])
-        self.assertIn(f"'={marker}", response.text)
-        self.assertNotIn("hashed_password", response.text)
+        self.assertIn(".xlsx", response.headers["content-disposition"])
+        self.assertEqual(response.headers["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with ZipFile(BytesIO(response.content)) as workbook:
+            worksheet = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn(f"={marker}", worksheet)
+        self.assertIn('t="inlineStr"', worksheet)
+        self.assertNotIn("<f>", worksheet)
+        self.assertNotIn("hashed_password", worksheet)
         self.assertEqual(client.get("/admin/master/students/export", headers=auth(self.student.token)).status_code, 403)
 
     def test_summary_uses_real_data_and_no_fake_activity(self):

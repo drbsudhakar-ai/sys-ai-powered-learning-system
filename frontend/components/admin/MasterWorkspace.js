@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -36,11 +37,13 @@ import {
   getCourses,
 } from "../../src/api";
 import { clearSession } from "../../src/auth";
+import { safeProfilePhotoUrl } from "../../src/masterProfile";
 import {
   compactQuery,
   downloadBlob,
   isMasterPageResponse,
   masterQueryFromRouter,
+  studentProgrammeLabel,
   MASTER_PAGE_SIZES,
   MASTER_STATUS_TABS,
 } from "../../src/adminMaster";
@@ -96,8 +99,44 @@ function statusLabel(value) {
   return String(value || "Unavailable").replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
 }
 
+function registrationLabel(value) {
+  const status = String(value || "").toUpperCase();
+  if (status === "ACTIVE") return "Registered";
+  if (status.startsWith("PENDING")) return "Pending registration";
+  if (status === "DISABLED") return "Disabled";
+  return "Registration unavailable";
+}
+
+function isRegistered(record) {
+  return String(record?.registration_status || "").toUpperCase() === "ACTIVE";
+}
+
 function contactLabel(record) {
   return record.email || "Email unavailable";
+}
+
+function mobileLabel(record) {
+  return record.mobile_number || record.mobile_masked || "Mobile unavailable";
+}
+
+function recordInitials(name) {
+  const words = String(name || "SYS")
+    .replace(/\b(?:dr|mr|mrs|ms|prof)\.?\s*/gi, "")
+    .trim()
+    .split(/[\s.]+/)
+    .filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : words[0]?.slice(0, 2) || "SY").toUpperCase();
+}
+
+function activityLabel(value) {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(date)} IST`;
 }
 
 function ConfirmDialog({ open, title, message, busy, onCancel, onConfirm }) {
@@ -140,6 +179,7 @@ function SortHeader({ field, label, query, updateQuery }) {
 
 function RecordDrawer({ kind, record, onClose, openerRef }) {
   const closeRef = useRef(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
   function closeAndRestore() {
     onClose();
     window.requestAnimationFrame(() => openerRef.current?.focus());
@@ -147,18 +187,26 @@ function RecordDrawer({ kind, record, onClose, openerRef }) {
   useEffect(() => {
     if (!record) return undefined;
     closeRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const close = (event) => {
       if (event.key === "Escape") closeAndRestore();
     };
     window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [record]);
+  useEffect(() => { setPhotoFailed(false); }, [record?.photo_url]);
   if (!record) return null;
   const editHref = `/admin/${kind === "student" ? "students" : "faculty"}/${record.id}/edit`;
+  const profileHref = `/admin/${kind === "student" ? "students" : "faculty"}/${record.id}`;
   const identifier = kind === "student" ? record.roll_number : record.employee_code;
-  const fields = kind === "student"
+  const photo = safeProfilePhotoUrl(record.photo_url);
+  const institutionalFields = kind === "student"
     ? [
-      ["Programme", record.programmes?.map((item) => item.title).join(", ") || "Unavailable"],
+      ["Academic programme", studentProgrammeLabel(record)],
       ["College", record.college || "Unavailable"],
       ["Admission year", record.admission_year ?? "Unavailable"],
       ["Present year", record.present_year ?? "Unavailable"],
@@ -169,30 +217,73 @@ function RecordDrawer({ kind, record, onClose, openerRef }) {
       ["Department", record.department || "Unavailable"],
       ["Designation", record.designation || "Unavailable"],
       ["Employment status", record.employment_status ? statusLabel(record.employment_status) : "Unavailable"],
-      ["Course coordinator assignments", record.coordinator_assignments],
-      ["Subject expert assignments", record.subject_expert_assignments],
+      ["Coordinator assignments", record.coordinator_assignments ?? 0],
+      ["Subject expert assignments", record.subject_expert_assignments ?? 0],
     ];
+  const pendingRegistration = !isRegistered(record);
+  const registrationDisplayLabel = registrationLabel(record.registration_status);
   return (
     <div className={styles.drawerLayer}>
       <button type="button" className={styles.drawerScrim} aria-label="Close record details" onClick={closeAndRestore} />
       <aside className={styles.recordDrawer} role="dialog" aria-modal="true" aria-labelledby="record-drawer-title">
         <div className={styles.drawerHeader}>
-          <div><span>{kind === "student" ? "Student" : "Faculty"} master record</span><h2 id="record-drawer-title">{record.name}</h2></div>
+          <div className={styles.drawerIdentity}>
+            <span>{kind === "student" ? "Student" : "Faculty"} master record</span>
+            <div className={styles.drawerProfile}>
+              <div className={styles.drawerAvatar}>{photo && !photoFailed ? <Image src={photo} alt={`${record.name} profile photograph`} width={54} height={54} unoptimized onError={() => setPhotoFailed(true)} /> : <span aria-hidden="true">{recordInitials(record.name)}</span>}</div>
+              <div className={styles.drawerProfileText}>
+                <h2 id="record-drawer-title">{record.name}</h2>
+                <p>{kind === "student" ? "Roll number" : "Employee code"}: {identifier || "Unavailable"}</p>
+              </div>
+            </div>
+            <span className={`${styles.drawerStatus} ${pendingRegistration || !record.is_active ? styles.drawerStatusPending : styles.drawerStatusActive}`}>
+              {registrationDisplayLabel}
+            </span>
+          </div>
           <button ref={closeRef} type="button" aria-label="Close record details" onClick={closeAndRestore}><XMarkIcon aria-hidden="true" /></button>
         </div>
         <div className={styles.drawerBody}>
-          <dl>
-            <div><dt>{kind === "student" ? "Roll number" : "Employee code"}</dt><dd>{identifier || "Unavailable"}</dd></div>
-            <div><dt>Email</dt><dd>{record.email || "Unavailable"}</dd></div>
-            <div><dt>Mobile</dt><dd>{record.mobile_masked || "Unavailable"}</dd></div>
-            <div><dt>Registration</dt><dd>{statusLabel(record.registration_status)}</dd></div>
-            <div><dt>Email verified</dt><dd>{record.email_verified ? "Verified" : "Not verified"}</dd></div>
-            <div><dt>Mobile verified</dt><dd>{record.mobile_verified ? "Verified" : "Not verified"}</dd></div>
-            {fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-            <div><dt>Last login</dt><dd>{record.last_login_available ? record.last_login_at : "Unavailable"}</dd></div>
-          </dl>
+          <section className={styles.drawerSection} aria-labelledby="drawer-contact-title">
+            <h3 id="drawer-contact-title">Contact information</h3>
+            <dl className={styles.drawerDetailGrid}>
+              <div className={styles.drawerFullWidth}><dt>Email address</dt><dd>{record.email || "Not available"}</dd></div>
+              <div><dt>Mobile number</dt><dd>{mobileLabel(record)}</dd></div>
+              <div><dt>{kind === "student" ? "Roll number" : "Employee code"}</dt><dd>{identifier || "Not available"}</dd></div>
+            </dl>
+          </section>
+
+          <section className={styles.drawerSection} aria-labelledby="drawer-institution-title">
+            <h3 id="drawer-institution-title">{kind === "student" ? "Academic information" : "Professional information"}</h3>
+            <dl className={styles.drawerDetailGrid}>
+              {institutionalFields.map(([label, value]) => (
+                <div key={label} className={label === "College" || label === "Academic programme" ? styles.drawerFullWidth : undefined}>
+                  <dt>{label}</dt><dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className={styles.drawerSection} aria-labelledby="drawer-account-title">
+            <h3 id="drawer-account-title">Account and verification</h3>
+            <dl className={styles.drawerDetailGrid}>
+              <div><dt>Registration status</dt><dd>{registrationDisplayLabel}</dd></div>
+              <div><dt>Account status</dt><dd>{record.is_active ? "Enabled" : "Inactive"}</dd></div>
+              <div><dt>Email verification</dt><dd className={record.email_verified ? styles.drawerVerified : styles.drawerUnverified}>{record.email_verified ? "Verified" : "Not verified"}</dd></div>
+              <div><dt>Mobile verification</dt><dd className={record.mobile_verified ? styles.drawerVerified : styles.drawerUnverified}>{record.mobile_verified ? "Verified" : "Not verified"}</dd></div>
+            </dl>
+          </section>
+
+          <section className={styles.drawerSection} aria-labelledby="drawer-activity-title">
+            <h3 id="drawer-activity-title">Record activity</h3>
+            <dl className={styles.drawerDetailGrid}>
+              <div><dt>Created</dt><dd>{activityLabel(record.created_at)}</dd></div>
+              <div><dt>Last updated</dt><dd>{activityLabel(record.updated_at)}</dd></div>
+              <div className={styles.drawerFullWidth}><dt>Last login</dt><dd>{record.last_login_available ? activityLabel(record.last_login_at) : "No login recorded"}</dd></div>
+            </dl>
+          </section>
         </div>
         <div className={styles.drawerActions}>
+          <Link href={profileHref} className={styles.drawerProfileLink}><EyeIcon aria-hidden="true" /> Open full profile</Link>
           <Link href={editHref}><PencilSquareIcon aria-hidden="true" /> Edit record</Link>
           <button type="button" className={styles.secondaryButton} onClick={closeAndRestore}>Close</button>
         </div>
@@ -213,8 +304,6 @@ export default function MasterWorkspace({ kind }) {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [preview, setPreview] = useState(null);
-  const previewOpenerRef = useRef(null);
   const [bulkAction, setBulkAction] = useState("deactivate");
   const [bulkTarget, setBulkTarget] = useState("");
   const [bulkResult, setBulkResult] = useState("");
@@ -358,7 +447,7 @@ export default function MasterWorkspace({ kind }) {
     try {
       const response = await config.exportData(compactQuery(query));
       const disposition = response.headers?.["content-disposition"] || "";
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `SYS_${kind}_master.csv`;
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `SYS_${kind}_master.xlsx`;
       downloadBlob(response.data, filename);
     } catch (error) {
       if (!(await handleRequestError(error))) setBulkResult(getApiErrorMessage(error, "Unable to export the current view."));
@@ -410,7 +499,7 @@ export default function MasterWorkspace({ kind }) {
 
             <div id={`${kind}-master-filters`} className={styles.filterPanel} hidden={!filtersOpen}>
               <label>College<input value={query.college} onChange={(event) => updateQuery({ college: event.target.value, page: 1 }, { replace: true })} /></label>
-              <label>Registration<select value={query.registration_status} onChange={(event) => updateQuery({ registration_status: event.target.value, page: 1 })}><option value="">All</option><option value="PENDING_ACTIVATION">Pending activation</option><option value="ACTIVE">Active</option><option value="DISABLED">Disabled</option></select></label>
+              <label>Registration<select value={query.registration_status} onChange={(event) => updateQuery({ registration_status: event.target.value, page: 1 })}><option value="">All</option><option value="PENDING_ACTIVATION">Pending registration</option><option value="ACTIVE">Registered</option><option value="DISABLED">Disabled</option></select></label>
               {kind === "student" ? (
                 <>
                   <label>Programme<select value={query.programme_id} onChange={(event) => updateQuery({ programme_id: event.target.value, page: 1 })}><option value="">All</option>{auxiliary.courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}</select></label>
@@ -462,17 +551,17 @@ export default function MasterWorkspace({ kind }) {
                       <tr key={record.id}>
                         <td><input type="checkbox" aria-label={`Select ${record.name}`} checked={selectedIds.includes(record.id)} onChange={() => setSelectedIds((ids) => ids.includes(record.id) ? ids.filter((id) => id !== record.id) : [...ids, record.id])} /></td>
                         <td><strong>{record[config.identifier] || "Unavailable"}</strong></td>
-                        <td><strong>{record.name}</strong><span>{contactLabel(record)}</span><span>{record.mobile_masked || "Mobile unavailable"}</span></td>
-                        {kind === "student" ? <><td>{record.programmes?.map((item) => item.title).join(", ") || "Unavailable"}</td><td>{record.college || "Unavailable"}<span>{record.admission_year ? `Admitted ${record.admission_year}` : "Admission year unavailable"}</span></td></> : <><td>{record.department || "Unavailable"}<span>{record.designation || "Designation unavailable"}</span></td><td>{record.coordinator_assignments} coordinator · {record.subject_expert_assignments} expert</td></>}
-                        <td><span className={`${styles.statusBadge} ${record.is_active ? styles.statusActive : styles.statusInactive}`}>{statusLabel(record.registration_status)}</span><small>{kind === "student" ? statusLabel(record.academic_status) : statusLabel(record.employment_status)}</small></td>
-                        <td><div className={styles.rowActions}><button type="button" ref={selectedIds[0] === record.id ? previewOpenerRef : undefined} onClick={(event) => { previewOpenerRef.current = event.currentTarget; setPreview(record); }}><EyeIcon aria-hidden="true" /> View</button><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}/edit`}><PencilSquareIcon aria-hidden="true" /> Edit</Link></div></td>
+                        <td><strong>{record.name}</strong><span>{contactLabel(record)}</span><span>{mobileLabel(record)}</span></td>
+                        {kind === "student" ? <><td>{studentProgrammeLabel(record)}</td><td>{record.college || "Unavailable"}<span>{record.admission_year ? `Admitted ${record.admission_year}` : "Admission year unavailable"}</span></td></> : <><td>{record.department || "Unavailable"}<span>{record.designation || "Designation unavailable"}</span></td><td>{record.coordinator_assignments} coordinator · {record.subject_expert_assignments} expert</td></>}
+                        <td><span className={`${styles.statusBadge} ${isRegistered(record) ? styles.statusActive : styles.statusInactive}`}>{registrationLabel(record.registration_status)}</span><small>{kind === "student" ? `Academic: ${statusLabel(record.academic_status)}` : `Employment: ${statusLabel(record.employment_status)}`}</small></td>
+                        <td><div className={styles.rowActions}><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}`}><EyeIcon aria-hidden="true" /> View</Link><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}/edit`}><PencilSquareIcon aria-hidden="true" /> Edit</Link></div></td>
                       </tr>
                     ))}</tbody>
                   </table>
                 </div>
 
                 <div className={styles.mobileCards}>{records.items.map((record) => (
-                  <article key={record.id}><div><input type="checkbox" aria-label={`Select ${record.name}`} checked={selectedIds.includes(record.id)} onChange={() => setSelectedIds((ids) => ids.includes(record.id) ? ids.filter((id) => id !== record.id) : [...ids, record.id])} /><span className={`${styles.statusBadge} ${record.is_active ? styles.statusActive : styles.statusInactive}`}>{statusLabel(record.registration_status)}</span></div><h3>{record.name}</h3><strong>{record[config.identifier] || "Identifier unavailable"}</strong><p>{contactLabel(record)}<br />{record.mobile_masked || "Mobile unavailable"}</p><dl><div><dt>{kind === "student" ? "Programme" : "Department"}</dt><dd>{kind === "student" ? record.programmes?.map((item) => item.title).join(", ") || "Unavailable" : record.department || "Unavailable"}</dd></div><div><dt>College</dt><dd>{record.college || "Unavailable"}</dd></div></dl><div className={styles.rowActions}><button type="button" onClick={(event) => { previewOpenerRef.current = event.currentTarget; setPreview(record); }}><EyeIcon aria-hidden="true" /> View</button><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}/edit`}><PencilSquareIcon aria-hidden="true" /> Edit</Link></div></article>
+                  <article key={record.id}><div><input type="checkbox" aria-label={`Select ${record.name}`} checked={selectedIds.includes(record.id)} onChange={() => setSelectedIds((ids) => ids.includes(record.id) ? ids.filter((id) => id !== record.id) : [...ids, record.id])} /><span className={`${styles.statusBadge} ${isRegistered(record) ? styles.statusActive : styles.statusInactive}`}>{registrationLabel(record.registration_status)}</span></div><h3>{record.name}</h3><strong>{record[config.identifier] || "Identifier unavailable"}</strong><p>{contactLabel(record)}<br />{mobileLabel(record)}</p><dl><div><dt>{kind === "student" ? "Academic programme" : "Department"}</dt><dd>{kind === "student" ? studentProgrammeLabel(record) : record.department || "Unavailable"}</dd></div><div><dt>College</dt><dd>{record.college || "Unavailable"}</dd></div></dl><div className={styles.rowActions}><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}`}><EyeIcon aria-hidden="true" /> View</Link><Link href={`/admin/${kind === "student" ? "students" : "faculty"}/${record.id}/edit`}><PencilSquareIcon aria-hidden="true" /> Edit</Link></div></article>
                 ))}</div>
 
                 <nav className={styles.pagination} aria-label={`${config.singular} master pagination`}><span>Showing {pageStart}–{pageEnd} of {records.total}</span><div><button type="button" aria-label="Previous page" disabled={query.page <= 1} onClick={() => updateQuery({ page: query.page - 1 })}><ChevronLeftIcon aria-hidden="true" /></button><span>Page {query.page} of {totalPages}</span><button type="button" aria-label="Next page" disabled={query.page >= totalPages} onClick={() => updateQuery({ page: query.page + 1 })}><ChevronRightIcon aria-hidden="true" /></button></div></nav>
@@ -482,7 +571,6 @@ export default function MasterWorkspace({ kind }) {
         </div>
       </AdminShell>
 
-      <RecordDrawer kind={kind} record={preview} onClose={() => setPreview(null)} openerRef={previewOpenerRef} />
       <ConfirmDialog open={confirmOpen} title={`Confirm bulk ${confirmLabel}`} message={`Apply “${confirmLabel}” to ${selectedIds.length} selected ${selectedIds.length === 1 ? "record" : "records"}? Successful changes will be audited.`} busy={bulkBusy} onCancel={() => setConfirmOpen(false)} onConfirm={applyBulk} />
       
       {showStudentUpload && (

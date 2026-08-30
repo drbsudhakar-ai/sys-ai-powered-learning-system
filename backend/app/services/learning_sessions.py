@@ -55,8 +55,6 @@ def can_manage_learning_sessions(
         return True
     if subject_id is not None and is_subject_expert(db, user, subject_id):
         return True
-    if can_access_course_questions(db, user, course_id) and (user.role or "").lower() == "faculty":
-        return True
     return False
 
 
@@ -85,6 +83,9 @@ def is_session_participant(db: Session, session_id: int, user_id: int) -> bool:
 
 
 def can_view_session(db: Session, user: models.User, session: models.LearningSession) -> bool:
+    from app.services.course_enrollments import has_learning_access
+    if (user.role or "").lower() == "student" and not has_learning_access(db, user.id, session.course_id):
+        return False
     if is_admin(user):
         return True
     if session.created_by == user.id or session.facilitator_id == user.id:
@@ -371,6 +372,7 @@ def create_session(
             .filter(
                 models.StudentCourseEnrollment.student_id == primary_student_id,
                 models.StudentCourseEnrollment.course_id == course_id,
+                models.StudentCourseEnrollment.status == "ACTIVE",
             )
             .first()
         )
@@ -630,6 +632,7 @@ def add_participant(
             .filter(
                 models.StudentCourseEnrollment.student_id == user_id,
                 models.StudentCourseEnrollment.course_id == session.course_id,
+                models.StudentCourseEnrollment.status == "ACTIVE",
             )
             .first()
         )

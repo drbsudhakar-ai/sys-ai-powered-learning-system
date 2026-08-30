@@ -9,7 +9,7 @@ export default function Document() {
         <link rel="stylesheet" href="/branding/sys-v2/tokens/sys-brand.css" />
 
         {/* SYS Favicon + Theme */}
-        <link rel="icon" href="/branding/sys-v2/logos/SYS_Header_Logo_Dark.png" />
+        <link rel="icon" href="/branding/sys-v2/icons/favicon.ico" />
         <meta name="theme-color" content="#0A192F" />
       </Head>
       <body>

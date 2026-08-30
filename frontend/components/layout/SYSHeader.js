@@ -977,9 +977,9 @@ function resolvePhotoUrl(photoUrl) {
   const value = photoUrl.trim();
   if (!value) return null;
   if (/^https?:\/\//i.test(value)) return value;
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
-  return `${apiBaseUrl.replace(/\/$/, "")}${normalizedPath}`;
+  // Managed profile photographs are stored in Next.js public/photos and are
+  // therefore served by the frontend origin, not by the API server.
+  return value.startsWith("/") ? value : `/${value}`;
 }
 
 export default function SYSHeader({ session = { status: "anonymous", user: null } }) {
@@ -1008,14 +1008,20 @@ export default function SYSHeader({ session = { status: "anonymous", user: null 
     <header className="sticky top-0 z-50 w-full bg-gradient-to-r from-indigo-950 via-indigo-900 to-purple-900 border-b border-indigo-400/30 shadow-lg backdrop-blur-md">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-20">
         {/* Brand */}
-        <Link href={homeHref} className="flex items-center gap-3">
-          <Image
-            src="/branding/sys-v2/logos/SYS_Header_Logo_Dark.png"
-            alt="SYS – Strengthen Your Skills"
-            width={220}
-            height={72}
-            className="object-contain"
-          />
+        <Link href={homeHref} className="flex items-center gap-3 text-white no-underline" aria-label="SYS — Strengthen Your Skills">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-white/50">
+            <Image
+              src="/branding/sys-v2/logos/SYS_Symbol_Compact_Transparent.png"
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain"
+            />
+          </span>
+          <span className="hidden sm:grid leading-tight">
+            <strong className="text-sm text-white">SYS — Strengthen Your Skills</strong>
+            <small className="mt-1 text-[10px] text-indigo-200">AI-Powered Learning Platform</small>
+          </span>
         </Link>
 
         {/* Desktop Nav */}
@@ -1076,6 +1082,9 @@ export default function SYSHeader({ session = { status: "anonymous", user: null 
                     <div className="border-t border-white/20 my-2" />
                     <div className="flex flex-col gap-1">
                       <Link href={dashboardPath} onClick={() => setProfileOpen(false)} className="px-3 py-2 rounded hover:bg-indigo-700/50">Dashboard</Link>
+                      {["student", "faculty"].includes(user?.role) ? (
+                        <Link href="/account/profile" onClick={() => setProfileOpen(false)} className="px-3 py-2 rounded hover:bg-indigo-700/50">My profile</Link>
+                      ) : null}
                       <Link href="/notifications" onClick={() => setProfileOpen(false)} className="px-3 py-2 rounded hover:bg-indigo-700/50">Notifications</Link>
                       <button onClick={logout} className="px-3 py-2 rounded hover:bg-red-700/50 text-left">Log out</button>
                     </div>

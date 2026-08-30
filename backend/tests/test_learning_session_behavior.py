@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from tests.auth_helpers import ProtectedUserFactory
 from app.main import app
+from app import database, models
 
 client = TestClient(app)
 _users = ProtectedUserFactory(client, "P0133")
@@ -53,6 +54,12 @@ class LearningSessionBehaviorTests(unittest.TestCase):
         )
         assert course.status_code == 201, course.text
         cls.course_id = course.json()["id"]
+        with database.SessionLocal() as db:
+            fixture = db.get(models.Course, cls.course_id)
+            fixture.publication_status = "PUBLISHED"
+            fixture.is_active = True
+            fixture.self_enrollment_enabled = True
+            db.commit()
         assert (
             client.post(
                 "/admin/course-coordinators",

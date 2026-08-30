@@ -1,0 +1,39 @@
+.workspace{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh;background:#f4f7fc;color:#08275b}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:#071f4a;color:#fff;border-right:1px solid #254779;overflow:auto;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 14px;border-bottom:1px solid #28446f}
+.brandMark{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border-radius:12px;background:#fff;box-shadow:0 5px 18px #02143435}
+.brandMark img{width:42px;height:42px;object-fit:contain}
+.brandCopy{min-width:0;display:grid;gap:4px}
+.brandCopy strong{color:#fff;font-size:11px;line-height:1.25}
+.brandCopy small{color:#9db5dc;font-size:8px}
+.person{display:flex;align-items:center;gap:12px;padding:22px 18px 12px}
+.person strong,.person small{display:block}
+.person strong{max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.person small{margin-top:3px;color:#9db5dc}
+.avatar{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border:2px solid #84b7ff;border-radius:14px;background:linear-gradient(145deg,#225da8,#6933aa);font-size:17px;font-weight:800;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.sectionLabel{margin:17px 18px 8px;color:#8fb5ef;font-size:11px;font-weight:800;letter-spacing:.12em}
+.sidebar nav{display:grid;gap:4px;padding:0 10px}
+.sidebar nav a{display:flex;align-items:center;gap:11px;padding:12px 13px;border:1px solid transparent;border-radius:9px;color:#dce9ff;font-size:14px;font-weight:700;text-decoration:none}
+.sidebar nav a:hover,.sidebar nav a.active{color:#fff;background:#174582;border-color:#3873c5}
+.sidebar nav svg{width:20px}
+.navGroup{display:grid;gap:3px}.navGroupButton{display:flex;align-items:center;gap:11px;width:100%;padding:12px 13px;border:1px solid transparent;border-radius:9px;background:transparent;color:#dce9ff;font-size:14px;font-weight:700;text-align:left;cursor:pointer}.navGroupButton span{flex:1}.navGroupButton svg:last-child{width:15px}.navGroupButton:hover{color:#fff;background:#123b72}.navChildren{display:grid;gap:3px;padding-left:25px}.sidebar nav .navChildren a{padding:9px 11px;font-size:12px;font-weight:650}
+.sidebarFooter{margin-top:auto;padding:20px;border-top:1px solid #28446f}
+.sidebarFooter strong,.sidebarFooter span{display:block}
+.sidebarFooter strong{font-size:12px}
+.sidebarFooter span{margin-top:5px;color:#9db5dc;font-size:11px}
+.sidebarFooter small{display:block;margin-top:8px;color:#748db5;font-size:9px;line-height:1.4}
+.content{min-width:0;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:18;min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:9px clamp(18px,3vw,40px);border-bottom:1px solid #dde4ee;background:rgb(255 255 255 / 96%);backdrop-filter:blur(12px)}
+.topbarContext{min-width:0;display:flex;align-items:center;gap:7px;color:#283854;font-size:12px}.topbarContext strong{color:#2859a8}.topbarContext span{color:#a0a9b9}.topbarContext b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.topbarActions{display:flex;align-items:center;gap:10px}
+.notificationButton{position:relative;width:42px;height:42px;display:grid;place-items:center;border:1px solid #dce3ed;border-radius:10px;color:#53627c;background:#fff}.notificationButton svg{width:20px}.notificationButton>span{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff;border-radius:999px;color:#fff;background:#b74455;font-size:9px;font-weight:850}
+.profileMenu{position:relative}.profileButton{min-height:46px;display:flex;align-items:center;gap:9px;padding:5px 9px;border:0;border-radius:10px;color:#283854;background:transparent;cursor:pointer;text-align:left}.profileButton:hover{background:#f2f5fa}.profileButton>svg{width:15px}.topbarAvatar{width:34px;height:34px;display:grid;place-items:center;overflow:hidden;border-radius:9px;color:#fff;background:linear-gradient(145deg,#2864c8,#6936aa);font-size:11px;font-weight:850}.topbarAvatar img{width:100%;height:100%;object-fit:cover}.profileCopy{display:grid;gap:2px}.profileCopy strong{max-width:155px;overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.profileCopy small{color:#79859b;font-size:10px}.profilePopover{position:absolute;top:calc(100% + 8px);right:0;width:190px;display:grid;gap:7px;padding:12px;border:1px solid #dce3ed;border-radius:11px;background:#fff;box-shadow:0 16px 38px #102b5526}.profilePopover a,.profilePopover button{min-height:38px;padding:9px 11px;border:1px solid #d5deea;border-radius:8px;color:#374762;background:#fff;font:inherit;font-size:11px;font-weight:730;text-align:left;text-decoration:none;cursor:pointer}
+.mobileToggle{display:none}
+.content :global(.role-page){max-width:1160px;margin:0 auto}
+@media(max-width:900px){.workspace{display:block}
+.topbar{min-height:66px;padding-inline:13px}.profileCopy{display:none}.topbarContext b{max-width:130px}
+.mobileToggle{display:flex;align-items:center;gap:8px;position:fixed;left:14px;bottom:16px;z-index:40;padding:11px 15px;border:0;border-radius:999px;background:#1756aa;color:#fff;font-weight:800;box-shadow:0 8px 28px #08275b55}
+.mobileToggle svg{width:20px}
+.sidebar{position:fixed;inset:0 auto 0 0;width:270px;height:auto;transform:translateX(-105%);transition:transform .2s ease;box-shadow:14px 0 38px #061a3b44}
+.sidebarOpen{transform:translateX(0)}
+}

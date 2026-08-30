@@ -37,9 +37,22 @@ def create_topic(
         raise HTTPException(status_code=404, detail="Subject not found")
     if subject.course_id:
         require_assessment_designer(db, current_user, subject.course_id)
+        from app.services.syllabus_review import guard_legacy_write
+        guard_legacy_write(db, subject.course_id)
     elif not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    topic = models.Topic(name=payload.name, description=payload.description, subject_id=payload.subject_id)
+    unit_id = getattr(payload, "unit_id", None)
+    if unit_id is not None:
+        unit = db.query(models.Unit).filter(models.Unit.id == unit_id, models.Unit.subject_id == subject.id).first()
+        if not unit:
+            raise HTTPException(status_code=422, detail="Unit does not belong to the selected subject")
+    else:
+        unit = db.query(models.Unit).filter(models.Unit.subject_id == subject.id, models.Unit.name == "General").first()
+        if not unit:
+            unit = models.Unit(subject_id=subject.id, name="General", description="Compatibility unit for topics created through the existing curriculum API.", sequence=1)
+            db.add(unit)
+            db.flush()
+    topic = models.Topic(name=payload.name, description=payload.description, subject_id=payload.subject_id, unit_id=unit.id)
     db.add(topic)
     db.commit()
     db.refresh(topic)
@@ -70,6 +83,8 @@ def create_subtopic(
     subject = db.query(models.Subject).filter(models.Subject.id == topic.subject_id).first()
     if subject and subject.course_id:
         require_assessment_designer(db, current_user, subject.course_id)
+        from app.services.syllabus_review import guard_legacy_write
+        guard_legacy_write(db, subject.course_id)
     elif not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     row = models.Subtopic(name=payload.name, description=payload.description, topic_id=payload.topic_id)

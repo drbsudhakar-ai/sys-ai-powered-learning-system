@@ -1,0 +1,215 @@
+"""AI control-plane integration tests. HTTP provider responses are simulated."""
+import json
+import os
+import unittest
+from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
+import httpx
+from cryptography.fernet import Fernet
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from app import database, models
+from app.main import app
+from app.services import ai_gateway, ai_lecturer
+from app.services.ai_provider import ConfiguredAIProvider, get_ai_provider
+from app.services.ai_lesson_contract import lesson_plan, explanation_step
+from tests.auth_helpers import ProtectedUserFactory
+
+client = TestClient(app)
+users = ProtectedUserFactory(client, "AIGATE")
+
+
+class AIManagementTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.admin = users.create("admin")
+        cls.student = users.create("student", {"roll_number": "AIGATESTUDENT"})
+        cls.faculty = users.create("faculty", {"employee_code": "AIGATEFACULTY"})
+
+    def setUp(self):
+        self.enterContext(patch.dict(os.environ, {"SYS_AI_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+            "SYS_AI_PROVIDER": "configured", "SYS_AI_ALLOWED_BASE_URLS": ai_gateway.DEFAULT_BASES,
+            "SYS_AI_OLLAMA_BASE_URL": "http://127.0.0.1:11434"}))
+        with database.SessionLocal() as db:
+            db.query(models.AIUsageEvent).delete()
+            db.query(models.AIProviderSettings).delete()
+            db.commit()
+        self.payload = dict(label="Pilot", protocol="openai_compatible", base_url="https://api.groq.com/openai/v1",
+            model="test-model", enabled=True, api_key="test-only-not-real-key", expected_revision=0,
+            daily_requests=100, daily_tokens=150000, minute_requests=10, minute_tokens=50000,
+            student_daily_requests=2, max_output_tokens=500)
+
+    def tearDown(self):
+        with database.SessionLocal() as db:
+            db.query(models.AIUsageEvent).delete()
+            db.query(models.AIProviderSettings).delete()
+            db.commit()
+
+    def headers(self, user=None):
+        return {"Authorization": "Bearer " + (user or self.admin).token}
+
+    def save(self, **changes):
+        self.payload.update(changes)
+        response = client.put("/admin/ai/provider", headers=self.headers(), json=self.payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("test-only-not-real-key", response.text)
+        self.assertNotIn("encrypted_key", response.text)
+        self.payload["expected_revision"] = response.json()["revision"]
+        return response.json()
+
+    def response(self, content=None, total=42):
+        result = {"choices": [{"message": {"content": json.dumps(content or {"ok": True})}}]}
+        if total is not None:
+            result["usage"] = {"total_tokens": total}
+        return httpx.Response(200, json=result)
+
+    def request(self, actor=None):
+        return ai_gateway.complete_json(system="JSON only", user="Explain arithmetic", context={"actor_id": (actor or self.student).user_id, "intent": "ASK_QUESTION"})
+
+    def test_all_endpoints_admin_only(self):
+        for user in (self.student, self.faculty):
+            for method, path in (("get", "/provider"), ("put", "/provider"), ("post", "/provider/test"), ("get", "/usage")):
+                response = getattr(client, method)("/admin/ai" + path, headers=self.headers(user), **({"json": self.payload} if method == "put" else {}))
+                self.assertEqual(response.status_code, 403)
+        self.assertEqual(client.get("/admin/ai/usage").status_code, 401)
+
+    def test_encrypted_key_redaction_and_revision(self):
+        saved = self.save()
+        self.assertTrue(saved["has_api_key"])
+        with database.SessionLocal() as db:
+            stored = db.get(models.AIProviderSettings, 1).encrypted_key
+            self.assertNotIn(self.payload["api_key"], stored)
+            self.assertEqual(ai_gateway.cipher().decrypt(stored.encode()).decode(), self.payload["api_key"])
+            audit = db.query(models.AdminAuditLog).filter_by(action="ai.settings.updated").order_by(models.AdminAuditLog.id.desc()).first()
+            self.assertNotIn(self.payload["api_key"], json.dumps(audit.details))
+        bad = {**self.payload, "expected_revision": 0}
+        self.assertEqual(client.put("/admin/ai/provider", headers=self.headers(), json=bad).status_code, 409)
+
+    def test_validation_errors_never_echo_secrets(self):
+        bad = {**self.payload, "api_key": {"secret": "never-echo-this"}}
+        response = client.put("/admin/ai/provider", headers=self.headers(), json=bad)
+        self.assertEqual(response.status_code, 422)
+        self.assertNotIn("never-echo-this", response.text)
+
+    def test_unapproved_endpoint_and_missing_encryption(self):
+        for base in ("http://169.254.169.254", "https://api.groq.com/openai/v1?secret=yes", "https://evil.example"):
+            response = client.put("/admin/ai/provider", headers=self.headers(), json={**self.payload, "base_url": base})
+            self.assertEqual(response.status_code, 422)
+        with patch.dict(os.environ, {"SYS_AI_ENCRYPTION_KEY": ""}):
+            response = client.put("/admin/ai/provider", headers=self.headers(), json=self.payload)
+            self.assertEqual(response.status_code, 503)
+
+    def test_destination_change_clears_old_key(self):
+        self.save()
+        saved = self.save(base_url="https://api.openai.com/v1", api_key=None, enabled=False)
+        self.assertFalse(saved["has_api_key"])
+
+    def test_hosted_adapter_and_actual_usage(self):
+        self.save()
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call:
+            self.assertEqual(self.request(), {"ok": True})
+        self.assertEqual(call.call_args.args[0], "https://api.groq.com/openai/v1/chat/completions")
+        self.assertEqual(call.call_args.kwargs["headers"]["Authorization"], "Bearer test-only-not-real-key")
+        self.assertNotIn("actor_id", json.dumps(call.call_args.kwargs["json"]))
+        summary = client.get("/admin/ai/usage", headers=self.headers()).json()
+        self.assertEqual(summary["requests"], 1)
+        self.assertEqual(summary["measured_tokens"], 42)
+        self.assertEqual(summary["budget_tokens"], 42)
+        self.assertNotIn("Explain arithmetic", json.dumps(summary))
+
+    def test_ollama_adapter(self):
+        self.save(protocol="ollama", base_url="http://127.0.0.1:11434", api_key=None)
+        response = httpx.Response(200, json={"message": {"content": '{"ok":true}'}, "prompt_eval_count": 10, "eval_count": 5})
+        with patch.object(httpx.Client, "post", return_value=response) as call:
+            self.request()
+        self.assertTrue(call.call_args.args[0].endswith("/api/chat"))
+        self.assertNotIn("Authorization", call.call_args.kwargs["headers"])
+        self.assertEqual(client.get("/admin/ai/usage", headers=self.headers()).json()["measured_tokens"], 15)
+
+    def test_student_limit_and_faculty_shared_limit(self):
+        self.save(student_daily_requests=1, daily_requests=2)
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call:
+            self.request()
+            with self.assertRaises(HTTPException) as denied:
+                self.request()
+            self.assertEqual(denied.exception.status_code, 429)
+            self.request(self.faculty)
+            with self.assertRaises(HTTPException):
+                self.request(self.admin)
+            self.assertEqual(call.call_count, 2)
+
+    def test_minute_and_token_budgets_block_before_network(self):
+        self.save(minute_requests=1)
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call:
+            self.request()
+            with self.assertRaises(HTTPException):
+                self.request(self.faculty)
+            self.assertEqual(call.call_count, 1)
+        self.save(minute_requests=10, daily_tokens=1000, max_output_tokens=1500)
+        with patch.object(httpx.Client, "post") as call:
+            with self.assertRaises(HTTPException):
+                self.request(self.faculty)
+            call.assert_not_called()
+
+    def test_disabled_and_connection_test(self):
+        self.save(enabled=False)
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call:
+            with self.assertRaises(HTTPException) as denied:
+                self.request()
+            self.assertEqual(denied.exception.status_code, 503)
+            response = client.post("/admin/ai/provider/test", headers=self.headers())
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(call.call_count, 1)
+
+    def test_provider_failure_is_explicit_and_keeps_reservation(self):
+        self.save()
+        with patch.object(httpx.Client, "post", return_value=httpx.Response(429, text="upstream sensitive body")):
+            with self.assertRaises(HTTPException) as denied:
+                self.request()
+        self.assertEqual(denied.exception.status_code, 502)
+        self.assertNotIn("upstream sensitive body", denied.exception.detail)
+        data = client.get("/admin/ai/usage", headers=self.headers()).json()
+        self.assertEqual(data["failed_requests"], 1)
+        self.assertGreater(data["budget_tokens"], 0)
+        self.assertEqual(data["estimated_requests"], 1)
+
+    def test_missing_usage_and_invalid_json(self):
+        self.save()
+        with patch.object(httpx.Client, "post", return_value=self.response(total=None)):
+            self.request()
+        bad = httpx.Response(200, json={"choices": [{"message": {"content": "not JSON"}}]})
+        with patch.object(httpx.Client, "post", return_value=bad):
+            with self.assertRaises(HTTPException):
+                self.request()
+        data = client.get("/admin/ai/usage", headers=self.headers()).json()
+        self.assertEqual(data["estimated_requests"], 2)
+
+    def test_configured_default_and_live_plan_consumption(self):
+        self.assertIsInstance(get_ai_provider(), ConfiguredAIProvider)
+        self.save()
+        raw = {"steps": [{"title": f"Part {i}", "explanation": "Actual provider lesson", "narration": "A clear explanation."} for i in range(3)]}
+        session = SimpleNamespace(topic_id=None, subject_id=None, title="Arithmetic", objectives=[], id=12, mode="INDIVIDUAL")
+        with database.SessionLocal() as db, patch.object(httpx.Client, "post", return_value=self.response(raw)):
+            plan = ai_lecturer._generate_plan(db, session, self.student.user)
+        self.assertEqual(plan["source"], "configured_ai")
+        self.assertEqual(plan["steps"][0]["board"]["elements"][1]["text"], "Actual provider lesson")
+
+    def test_schema_rejects_executable_or_incomplete_payloads(self):
+        with self.assertRaises(HTTPException):
+            lesson_plan({"steps": [], "javascript": "alert(1)"}, "Bad")
+        with self.assertRaises(HTTPException):
+            explanation_step({"answer": "", "html": "<script>"})
+
+    def test_concurrent_requests_cannot_oversubscribe_daily_budget(self):
+        self.save(daily_requests=1)
+        def attempt(_):
+            try:
+                self.request(self.admin)
+                return 200
+            except HTTPException as error:
+                return error.status_code
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call, ThreadPoolExecutor(max_workers=4) as executor:
+            outcomes = list(executor.map(attempt, range(4)))
+            self.assertEqual(sorted(outcomes), [200, 429, 429, 429])
+            self.assertEqual(call.call_count, 1)

@@ -14,6 +14,7 @@ os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient
 from tests.auth_helpers import ProtectedUserFactory
+from app import database, models
 from app.main import app
 
 client = TestClient(app)
@@ -31,6 +32,19 @@ def _register_login(role: str, extra: dict) -> tuple[str, int]:
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _publish_test_course(course_id: int) -> None:
+    """Move this isolated fixture course to the state required for enrollment."""
+    db = database.SessionLocal()
+    try:
+        course = db.query(models.Course).filter(models.Course.id == course_id).one()
+        course.publication_status = "PUBLISHED"
+        course.is_active = True
+        course.self_enrollment_enabled = True
+        db.commit()
+    finally:
+        db.close()
 
 
 class LearningSessionAPITests(unittest.TestCase):
@@ -73,6 +87,7 @@ class LearningSessionAPITests(unittest.TestCase):
         )
         assert topic.status_code == 201
         cls.topic_id = topic.json()["id"]
+        _publish_test_course(cls.course_id)
         assert (
             client.post(f"/courses/{cls.course_id}/enroll", headers=_auth(cls.student_token)).status_code
             == 201

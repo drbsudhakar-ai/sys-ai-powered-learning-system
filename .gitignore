@@ -3,6 +3,10 @@ node_modules/
 .venv/
 venv/
 
+# Runtime profile photographs
+frontend/public/photos/*
+!frontend/public/photos/.gitkeep
+
 # Next.js
 .next/
 out/

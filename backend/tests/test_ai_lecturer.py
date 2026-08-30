@@ -8,6 +8,7 @@ import os
 import sys
 import unittest
 import uuid
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -15,9 +16,10 @@ os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from fastapi.testclient import TestClient
 
 from tests.auth_helpers import ProtectedUserFactory
+from app import database, models
 from app.main import app
 from app.services.teaching_plans import build_teaching_plan, validate_teaching_plan
-from app.services.ai_provider import MockAIProvider, get_ai_provider
+from app.services.ai_provider import MockAIProvider, ConfiguredAIProvider, get_ai_provider
 
 client = TestClient(app)
 _users = ProtectedUserFactory(client, "P0134")
@@ -36,7 +38,22 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _publish_test_course(course_id: int) -> None:
+    """Move this isolated fixture course to the state required for enrollment."""
+    db = database.SessionLocal()
+    try:
+        course = db.query(models.Course).filter(models.Course.id == course_id).one()
+        course.publication_status = "PUBLISHED"
+        course.is_active = True
+        course.self_enrollment_enabled = True
+        db.commit()
+    finally:
+        db.close()
+
+
 class TeachingPlanUnitTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict(os.environ, {"SYS_AI_PROVIDER": "mock"}))
     def test_newton_plan_is_stepwise_not_paragraph(self):
         plan = build_teaching_plan(title="Newton's Second Law", topic_title="Newton's Second Law")
         validate_teaching_plan(plan)
@@ -54,10 +71,25 @@ class TeachingPlanUnitTests(unittest.TestCase):
         out = p.complete_json(system="sys", user="plan", context={"intent": "TEACHING_PLAN"})
         self.assertTrue(out.get("prefer_template"))
 
+    def test_live_visuals_and_recap_are_data_only(self):
+        from app.services.ai_lesson_contract import lesson_plan
+        from fastapi import HTTPException
+        steps = [{"title": "Force", "explanation": "A force changes motion.", "narration": "Observe the relationship.",
+                  "bullets": ["Force is measured in newtons"], "formula": "F = ma", "flow": ["Force", "Acceleration"], "model_3d": "force_vectors"} for _ in range(3)]
+        plan = lesson_plan({"steps": steps}, "Newton")
+        self.assertEqual(plan["steps"][0]["kind"], "INTRODUCTION")
+        self.assertEqual(plan["steps"][-1]["kind"], "SUMMARY")
+        self.assertEqual(plan["steps"][1]["visual"]["model_type"], "force_vectors")
+        self.assertTrue(any(el["type"] == "flow" for el in plan["steps"][1]["board"]["elements"]))
+        steps[0]["model_3d"] = "execute_arbitrary_code"
+        with self.assertRaises(HTTPException):
+            lesson_plan({"steps": steps}, "Invalid")
+
 
 class AILecturerAPITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.enterClassContext(patch.dict(os.environ, {"SYS_AI_PROVIDER": "mock"}))
         cls.admin_token, cls.admin_id = _register_login("admin", {"employee_code": "P0134A"})
         cls.faculty_token, cls.faculty_id = _register_login("faculty", {"employee_code": "P0134F"})
         cls.student_token, cls.student_id = _register_login("student", {"roll_number": "P0134S"})
@@ -92,6 +124,7 @@ class AILecturerAPITests(unittest.TestCase):
         )
         assert topic.status_code == 201
         cls.topic_id = topic.json()["id"]
+        _publish_test_course(cls.course_id)
         assert (
             client.post(f"/courses/{cls.course_id}/enroll", headers=_auth(cls.student_token)).status_code
             == 201
@@ -144,8 +177,34 @@ class AILecturerAPITests(unittest.TestCase):
         self.assertEqual(client.post("/learning-sessions/1/lecture/open").status_code, 401)
         self.assertEqual(client.get("/learning-sessions/1/lecture").status_code, 401)
 
+    def test_live_shared_lesson_reuse_and_private_explanation(self):
+        sid = self._create_common()
+        raw = {"steps": [{"title": f"Part {i}", "explanation": "Provider concept", "narration": "Provider narration"} for i in range(3)]}
+        with patch.dict(os.environ, {"SYS_AI_PROVIDER": "configured"}), patch.object(ConfiguredAIProvider, "complete_json", side_effect=[raw, {"answer": "Private clarification for this learner"}]) as provider:
+            opened = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
+            self.assertEqual(opened.status_code, 200, opened.text)
+            self.assertEqual(opened.json()["teaching_plan"]["source"], "configured_ai")
+            student = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token))
+            self.assertEqual(student.status_code, 200, student.text)
+            self.assertEqual(provider.call_count, 1)
+            answer = client.post(f"/learning-sessions/{sid}/lecture/interact", headers=_auth(self.student_token), json={"intent": "ASK", "message": "Explain again"})
+            self.assertEqual(answer.status_code, 200, answer.text)
+            self.assertIn("Private clarification", answer.json()["current_step"]["narration"]["text"])
+            self.assertEqual(answer.json()["step_count"], 3)
+            peer = client.get(f"/learning-sessions/{sid}/lecture", headers=_auth(self.student2_token))
+            self.assertNotIn("Private clarification", peer.text)
+            playback = client.post(f"/learning-sessions/{sid}/lecture/interact", headers=_auth(self.student_token), json={"intent": "CONTINUE"})
+            self.assertEqual(playback.status_code, 200, playback.text)
+            self.assertEqual(provider.call_count, 2)
+            own_history = client.get(f"/learning-sessions/{sid}/lecture/questions", headers=_auth(self.student_token))
+            self.assertIn("Private clarification", own_history.text)
+            peer_history = client.get(f"/learning-sessions/{sid}/lecture/questions", headers=_auth(self.student2_token))
+            self.assertEqual(peer_history.json()["items"], [])
+
     def test_open_sequence_progress_interact_complete(self):
         sid = self._create_common()
+        prepared = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
+        self.assertEqual(prepared.status_code, 200, prepared.text)
         opened = client.post(
             f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token)
         )
@@ -193,6 +252,10 @@ class AILecturerAPITests(unittest.TestCase):
         self.assertIn("teaching_plan", ask.json())
         self.assertIn("current_step", ask.json())
 
+        # Completion requires evidence of visiting every stage, including remediation.
+        for index in range(ask.json()["step_count"]):
+            visited = client.post(f"/learning-sessions/{sid}/lecture/step", headers=_auth(self.student_token), json={"action": "GOTO", "step_index": index})
+            self.assertEqual(visited.status_code, 200, visited.text)
         done = client.post(
             f"/learning-sessions/{sid}/lecture/control",
             headers=_auth(self.student_token),
@@ -223,8 +286,73 @@ class AILecturerAPITests(unittest.TestCase):
         )
         self.assertEqual(denied_get.status_code, 403)
 
+    def test_common_requires_faculty_preparation_and_roster_is_protected(self):
+        sid = self._create_common()
+        denied = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token))
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(client.get(f"/learning-sessions/{sid}/lecture/roster", headers=_auth(self.student_token)).status_code, 403)
+        roster = client.get(f"/learning-sessions/{sid}/lecture/roster", headers=_auth(self.faculty_token))
+        self.assertEqual(roster.status_code, 200, roster.text)
+        self.assertTrue(any(row["user_id"] == self.student_id for row in roster.json()["items"]))
+        self.assertNotIn("email", roster.text)
+        prepared = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
+        self.assertEqual(prepared.status_code, 200, prepared.text)
+
+    def test_completion_requires_visits_and_is_idempotent_after_replay(self):
+        sid = self._create_individual(self.student_id)
+        opened = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token))
+        self.assertEqual(opened.status_code, 200, opened.text)
+        blocked = client.post(f"/learning-sessions/{sid}/lecture/control", headers=_auth(self.student_token), json={"action": "COMPLETE"})
+        self.assertEqual(blocked.status_code, 409)
+        for index in range(opened.json()["step_count"]):
+            result = client.post(f"/learning-sessions/{sid}/lecture/step", headers=_auth(self.student_token), json={"action": "GOTO", "step_index": index})
+            self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(result.json()["can_complete"])
+        completed = client.post(f"/learning-sessions/{sid}/lecture/control", headers=_auth(self.student_token), json={"action": "COMPLETE"})
+        self.assertTrue(completed.json()["lesson_completed"])
+        replayed = client.post(f"/learning-sessions/{sid}/lecture/step", headers=_auth(self.student_token), json={"action": "REPLAY"})
+        self.assertEqual(replayed.json()["lecture_status"], "PLAYING")
+        self.assertTrue(replayed.json()["lesson_completed"])
+        client.post(f"/learning-sessions/{sid}/lecture/control", headers=_auth(self.student_token), json={"action": "COMPLETE"})
+        with database.SessionLocal() as db:
+            count = db.query(models.LearningEvidence).filter_by(session_id=sid, user_id=self.student_id, event_type="ACTIVITY_COMPLETED").count()
+            self.assertEqual(count, 1)
+
+    def test_lesson_completion_does_not_complete_other_assigned_activities(self):
+        sid = self._create_individual(self.student_id)
+        added = client.post(f"/learning-sessions/{sid}/activities", headers=_auth(self.faculty_token), json={"activity_type": "PRACTICE", "title": "Practice task", "scope": "COMMON", "sequence": 2})
+        self.assertEqual(added.status_code, 201, added.text)
+        opened = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token))
+        for index in range(opened.json()["step_count"]):
+            client.post(f"/learning-sessions/{sid}/lecture/step", headers=_auth(self.student_token), json={"action": "GOTO", "step_index": index})
+        done = client.post(f"/learning-sessions/{sid}/lecture/control", headers=_auth(self.student_token), json={"action": "COMPLETE"})
+        self.assertEqual(done.status_code, 200, done.text)
+        self.assertTrue(done.json()["lesson_completed"])
+        self.assertNotEqual(done.json()["session_status"], "COMPLETED")
+
+    def test_common_end_does_not_mark_students_complete(self):
+        sid = self._create_common()
+        client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
+        ended = client.post(f"/learning-sessions/{sid}/complete", headers=_auth(self.faculty_token))
+        self.assertEqual(ended.status_code, 200, ended.text)
+        with database.SessionLocal() as db:
+            self.assertEqual(db.query(models.LearningEvidence).filter_by(session_id=sid, event_type="ACTIVITY_COMPLETED").count(), 0)
+
+    def test_subject_expert_cannot_manage_another_subject(self):
+        from app.services.learning_sessions import can_manage_learning_sessions
+        expert = _users.create("faculty", {"employee_code": "E-SCOPE-" + uuid.uuid4().hex[:8]})
+        with database.SessionLocal() as db:
+            db.add(models.SubjectExpertAssignment(faculty_id=expert.user_id, subject_id=self.subject_id))
+            other = models.Subject(course_id=self.course_id, name="Other subject " + uuid.uuid4().hex[:8])
+            db.add(other); db.commit()
+            user = db.get(models.User, expert.user_id)
+            self.assertTrue(can_manage_learning_sessions(db, user, course_id=self.course_id, subject_id=self.subject_id))
+            self.assertFalse(can_manage_learning_sessions(db, user, course_id=self.course_id, subject_id=other.id))
+            self.assertFalse(can_manage_learning_sessions(db, user, course_id=self.course_id))
+
     def test_invalid_step_and_state(self):
         sid = self._create_common()
+        client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
         client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.student_token))
         bad = client.post(
             f"/learning-sessions/{sid}/lecture/step",

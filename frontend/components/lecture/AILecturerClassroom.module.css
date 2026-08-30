@@ -1,0 +1,82 @@
+.page { min-height: 100vh; padding: 24px clamp(16px, 4vw, 56px) 110px; color: #102b55; background: #f2f6fc; }
+.brand { margin: 12px 0 4px; color: #d9c9ff; font-size: 11px; font-weight: 900; letter-spacing: .12em; }
+.classroomGrid { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; margin-top: 20px; }
+.boardColumn { min-width: 0; }
+.lessonPanel { max-height: 680px; padding: 20px; overflow: auto; background: #fff; border: 1px solid #d6e1ef; border-radius: 18px; box-shadow: 0 12px 30px #12335b12; }
+.panelEyebrow { margin: 0; color: #6535a5; font-size: 10px; font-weight: 900; letter-spacing: .13em; }
+.lessonPanel h2 { margin: 6px 0 14px; color: #0b326f; font-size: 20px; }
+.progressTrack { height: 7px; overflow: hidden; background: #e7edf7; border-radius: 99px; }
+.progressTrack span { display: block; height: 100%; background: linear-gradient(90deg, #1765d6, #6734a5); transition: width .25s ease; }
+.stageList { display: grid; gap: 10px; margin: 18px 0; padding: 0; list-style: none; }
+.stageList li { display: flex; gap: 10px; padding: 9px; color: #6b7890; border-radius: 10px; }
+.stageList li > span { display: grid; flex: 0 0 27px; height: 27px; place-items: center; background: #eef3fa; border-radius: 50%; font-size: 11px; font-weight: 800; }
+.stageList li div { display: grid; gap: 2px; }
+.stageList strong { text-transform: capitalize; font-size: 12px; }
+.stageList small { font-size: 10px; }
+.stageList .currentStage { color: #0c3d80; background: #edf4ff; box-shadow: inset 3px 0 #2367d1; }
+.stageList .currentStage > span { color: #fff; background: #2367d1; }
+.stageList .doneStage { color: #277452; }
+.stageList .doneStage > span { color: #fff; background: #269267; }
+.classroomNote { padding: 12px; color: #4f617a; background: #f7f3ff; border: 1px solid #e5dafa; border-radius: 10px; font-size: 11px; line-height: 1.5; }
+.interactionArea { max-width: 850px; margin: 18px auto 0; }
+.sourceNote { color: #445b7b; font-size: 13px; line-height: 1.6; }
+.page:fullscreen { overflow: auto; padding: 24px 32px 140px; }
+.page:fullscreen .lessonPanel { max-height: none; }
+.history, .recap { padding: 20px; background: white; border: 1px solid #d6e1ef; border-radius: 14px; margin-top: 16px; line-height: 1.65; }
+.history summary { cursor: pointer; font-weight: 700; }
+.history article { padding: 16px 0; border-bottom: 1px solid #e1e8f3; overflow-wrap: anywhere; }
+.recap h2 { color: #4b2990; }
+.recap p { white-space: pre-line; }
+.stageList button { text-align: left; color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; }
+.stageList button small { display: block; margin-top: 4px; }
+.page :global(.lecture-voice) { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-bottom: 1px solid #d6e1ef; padding-bottom: 14px; margin-bottom: 14px; }
+.page :global(.lecture-voice small) { flex-basis: 100%; color: #53637d; }
+.page :global(.lecture-voice p) { margin: 3px 0; font-size: 13px; }
+.page :global(.lecture-voice select) { display: block; max-width: 230px; padding: 8px; border: 1px solid #bdcbe0; border-radius: 8px; }
+.page :global(.lecture-avatar) { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; color: white; background: linear-gradient(135deg, #216ad3, #6333a2); font-weight: 800; }
+.page :global(.lecture-avatar.is-speaking) { animation: speakingPulse 1s ease-in-out infinite alternate; }
+.page :global(.lecture-flow) { display: flex; flex-wrap: wrap; gap: 14px; padding: 0; list-style: none; }
+.page :global(.lecture-flow li) { padding: 14px; border: 1px solid #9fc8ff; border-radius: 10px; background: #ffffff12; max-width: 240px; }
+.page :global(.lecture-flow span) { display: block; color: #ffe78d; margin-bottom: 8px; }
+.page :global(.classroom-roster) { padding: 18px; margin-top: 16px; background: white; border: 1px solid #d6e1ef; border-radius: 12px; }
+.page :global(.classroom-roster summary) { font-weight: 750; cursor: pointer; }
+.page :global(.classroom-roster button) { margin: 8px 8px 8px 0; }
+.page :global(.roster-table) { max-height: 360px; overflow: auto; }
+.page :global(.roster-table table) { width: 100%; text-align: left; border-collapse: collapse; }
+.page :global(.roster-table th), .page :global(.roster-table td) { padding: 10px; border-bottom: 1px solid #d6e1ef; }
+.page :global(.roster-table small) { display: block; }
+.page :global(.visual3d-wrap) { height: 320px; }
+.page :global(button:disabled) { opacity: .55; cursor: not-allowed; }
+.page :global(button:focus-visible), .page :global(select:focus-visible), .page :global(summary:focus-visible) { outline: 3px solid #aa83ed; outline-offset: 3px; }
+@keyframes speakingPulse { from { box-shadow: 0 0 0 2px #6333a225; } to { box-shadow: 0 0 0 9px #216ad335; } }
+@media (prefers-reduced-motion: reduce) { .page :global(.lecture-avatar.is-speaking) { animation: none; } .progressTrack span { transition: none; } }
+
+.page :global(.lecture-topbar) { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 24px 28px; color: #fff; background: linear-gradient(115deg, #082e6c, #6333a2); border-radius: 20px; box-shadow: 0 16px 36px #0b326f24; }
+.page :global(.lecture-back) { color: #fff; font-size: 13px; font-weight: 800; text-decoration: none; }
+.page :global(.lecture-title) { margin: 5px 0; font-size: clamp(25px, 4vw, 38px); }
+.page :global(.lecture-subtitle) { margin: 3px 0 0; color: #e6eaf7; font-size: 13px; }
+.page :global(.lecture-top-actions) { flex: 0 0 auto; }
+.page :global(.digital-board) { padding: 14px; background: #0a2450; border: 5px solid #173f78; border-radius: 18px; box-shadow: 0 18px 36px #102b5524; }
+.page :global(.digital-board-surface) { min-height: 420px; padding: clamp(22px, 4vw, 42px); color: #f7fbff; background: radial-gradient(circle at top right, #174a71, #071b35 62%); border: 1px solid #79a7cf55; border-radius: 10px; }
+.page :global(.digital-board-meta) { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.page :global(.digital-board-meta span) { padding: 5px 9px; color: #cde6ff; background: #ffffff12; border-radius: 99px; font-size: 10px; font-weight: 800; }
+.page :global(.digital-board-elements) { margin: 0; padding: 0; list-style-position: inside; }
+.page :global(.lecture-heading) { color: #fff; font-size: 26px; }
+.page :global(.lecture-text), .page :global(.lecture-bullet) { color: #edf6ff; font-size: 18px; line-height: 1.65; }
+.page :global(.lecture-formula), .page :global(.lecture-callout), .page :global(.lecture-check) { margin: 18px 0; padding: 18px; color: #fff; background: #ffffff12; border: 1px solid #91c9ff55; border-radius: 12px; }
+.page :global(.lecture-formula) { color: #ffe78d; font-size: 26px; font-weight: 800; text-align: center; }
+.page :global(.lecture-narration) { margin-top: 14px; padding: 18px 20px; background: #fff; border: 1px solid #d6e1ef; border-radius: 14px; line-height: 1.55; }
+.page :global(.lecture-narration strong) { color: #5c3196; }
+.page :global(.lecture-controls) { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 14px; background: #fff; border-top: 1px solid #d5dfed; box-shadow: 0 -8px 26px #102b5518; }
+.page :global(.btn-primary), .page :global(.btn-secondary) { padding: 10px 14px; border: 1px solid #bfd0e5; border-radius: 9px; font-weight: 750; cursor: pointer; }
+.page :global(.btn-primary) { color: #fff; background: #1e62cc; border-color: #1e62cc; }
+.page :global(.btn-secondary) { color: #163c72; background: #f8fbff; }
+.page :global(.ask-lecturer-panel) { padding: 18px; background: #fff; border: 1px solid #d6e1ef; border-radius: 14px; }
+.page :global(.ask-lecturer-title) { color: #0b326f; font-weight: 800; }
+.page :global(.ask-lecturer-intents) { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.page :global(.ask-lecturer-input) { width: 100%; margin-bottom: 10px; padding: 12px; border: 1px solid #bdcbe0; border-radius: 9px; }
+.page :global(.lecture-error) { padding: 14px; color: #962c2c; background: #fff1f1; border-radius: 10px; }
+.page :global(.lecture-check-controls) { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 18px 0; }
+
+@media (max-width: 900px) { .classroomGrid { grid-template-columns: 1fr; } .lessonPanel { max-height: none; } }
+@media (max-width: 620px) { .page { padding: 12px 10px 150px; } .page :global(.lecture-topbar) { align-items: stretch; flex-direction: column; padding: 19px; } .page :global(.digital-board-surface) { min-height: 340px; } }

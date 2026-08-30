@@ -67,6 +67,41 @@ def normalize_email(value: str) -> str:
     return normalized
 
 
+def mask_institutional_email(value: str | None) -> str | None:
+    """Return a recognition hint without exposing the institutional address."""
+    if not value:
+        return None
+    try:
+        local, domain = normalize_email(value).rsplit("@", 1)
+    except ValueError:
+        return None
+    if len(local) == 1:
+        masked_local = f"{local}*"
+    elif len(local) == 2:
+        masked_local = f"{local[0]}*{local[-1]}"
+    else:
+        masked_local = f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}"
+    return f"{masked_local}@{domain}"
+
+
+def activation_identity_summary(user: models.User | None) -> dict | None:
+    if not user:
+        return None
+    institutional_id = user.roll_number if user.role == roles.STUDENT else user.employee_code
+    if not institutional_id:
+        return None
+    return {
+        "name": user.name,
+        "role": user.role,
+        "institutional_id": institutional_id,
+        "college": user.college,
+        "academic_program": user.academic_program if user.role == roles.STUDENT else None,
+        "department": user.department if user.role == roles.FACULTY else None,
+        "designation": user.designation if user.role == roles.FACULTY else None,
+        "masked_email": mask_institutional_email(user.institutional_email),
+    }
+
+
 def normalize_mobile(value: str) -> str:
     normalized = re.sub(r"[\s().-]", "", (value or "").strip())
     if not re.fullmatch(r"\+[1-9]\d{7,14}", normalized):
@@ -563,8 +598,8 @@ def complete_activation(
     ownership_authorization: str,
     email: str,
     email_authorization: str,
-    mobile_number: str,
-    mobile_authorization: str,
+    mobile_number: str | None,
+    mobile_authorization: str | None,
     password: str,
     confirm_password: str,
 ) -> models.User:
@@ -574,7 +609,7 @@ def complete_activation(
         raise HTTPException(status_code=422, detail=str(exc))
     try:
         normalized_email = normalize_email(email)
-        normalized_mobile = normalize_mobile(mobile_number)
+        normalized_mobile = normalize_mobile(mobile_number) if mobile_number else None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -591,23 +626,37 @@ def complete_activation(
         allowed_purposes={PURPOSE_ACTIVATION_EMAIL},
         user_id=ownership.user_id,
     )
-    mobile_challenge = authorization_challenge(
-        db,
-        mobile_authorization,
-        allowed_purposes={PURPOSE_ACTIVATION_MOBILE},
-        user_id=ownership.user_id,
+    mobile_challenge = (
+        authorization_challenge(
+            db,
+            mobile_authorization,
+            allowed_purposes={PURPOSE_ACTIVATION_MOBILE},
+            user_id=ownership.user_id,
+        )
+        if mobile_authorization
+        else None
     )
-    if not (
-        hmac.compare_digest(email_challenge.contact_hash or "", _contact_hash(normalized_email))
-        and hmac.compare_digest(mobile_challenge.contact_hash or "", _contact_hash(normalized_mobile))
+    if not hmac.compare_digest(
+        email_challenge.contact_hash or "", _contact_hash(normalized_email)
     ):
         raise HTTPException(status_code=400, detail="Verified contact details do not match")
+    if mobile_challenge and not hmac.compare_digest(
+        mobile_challenge.contact_hash or "", _contact_hash(normalized_mobile or "")
+    ):
+        raise HTTPException(status_code=400, detail="Verified mobile does not match")
 
     duplicate = db.query(models.User).filter(
         models.User.id != ownership.user_id,
         or_(
             and_(models.User.email_verified.is_(True), func.lower(models.User.email) == normalized_email),
-            and_(models.User.mobile_verified.is_(True), models.User.mobile_number == normalized_mobile),
+            (
+                and_(
+                    models.User.mobile_verified.is_(True),
+                    models.User.mobile_number == normalized_mobile,
+                )
+                if normalized_mobile
+                else False
+            ),
         ),
     ).first()
     if duplicate:
@@ -628,7 +677,7 @@ def complete_activation(
                 email=normalized_email,
                 mobile_number=normalized_mobile,
                 email_verified=True,
-                mobile_verified=True,
+                mobile_verified=bool(mobile_challenge),
                 mobile_is_personal=True,
                 hashed_password=password_hash,
                 account_status=ACCOUNT_ACTIVE,
@@ -640,6 +689,8 @@ def complete_activation(
             db.rollback()
             raise HTTPException(status_code=409, detail=GENERIC_ACTIVATION_ERROR)
         for challenge in (ownership, email_challenge, mobile_challenge):
+            if challenge is None:
+                continue
             challenge.authorization_used_at = now
             challenge.status = "USED"
         db.commit()

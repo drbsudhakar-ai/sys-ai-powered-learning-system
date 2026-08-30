@@ -1,12 +1,38 @@
 export const MASTER_STATUS_TABS = Object.freeze([
   Object.freeze({ value: "all", label: "All" }),
   Object.freeze({ value: "pending_registration", label: "Pending Registration" }),
-  Object.freeze({ value: "active", label: "Active" }),
+  Object.freeze({ value: "active", label: "Registered" }),
   Object.freeze({ value: "inactive", label: "Inactive" }),
   Object.freeze({ value: "needs_attention", label: "Needs Attention" }),
 ]);
 
 export const MASTER_PAGE_SIZES = Object.freeze([25, 50, 100]);
+
+export function studentProgrammeLabel(record) {
+  const academicProgramme = typeof record?.academic_program === "string"
+    ? record.academic_program.trim()
+    : "";
+  if (academicProgramme) return academicProgramme;
+  const enrolledProgrammes = Array.isArray(record?.programmes)
+    ? record.programmes.map((programme) => programme?.title).filter(Boolean).join(", ")
+    : "";
+  return enrolledProgrammes || "Unavailable";
+}
+
+export function normalizeMasterStatus(value, fallback = "ACTIVE") {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized === "ACTIVE" || normalized === "INACTIVE" ? normalized : fallback;
+}
+
+export function validateProfilePhoto(file, maxBytes = 5 * 1024 * 1024) {
+  if (!file) return "Choose a profile photo.";
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return "Choose a JPEG, PNG or WebP image.";
+  }
+  if (file.size <= 0) return "The selected image is empty.";
+  if (file.size > maxBytes) return "The profile photo must not exceed 5 MB.";
+  return "";
+}
 
 const firstValue = (value) => (Array.isArray(value) ? value[0] : value);
 
@@ -75,6 +101,7 @@ export function isMasterPageResponse(value) {
       && typeof item.name === "string"
       && typeof item.registration_status === "string"
       && typeof item.is_active === "boolean"
+      && (item.mobile_number === undefined || item.mobile_number === null || typeof item.mobile_number === "string")
       && (item.mobile_masked === null || typeof item.mobile_masked === "string")
     ));
 }

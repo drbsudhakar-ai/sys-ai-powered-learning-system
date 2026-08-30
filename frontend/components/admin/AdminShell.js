@@ -23,6 +23,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { clearSession, roleDisplayLabel } from "../../src/auth";
+import SYSFooter from "../layout/SYSFooter";
 import styles from "./AdminDashboard.module.css";
 
 const NAV_GROUPS = [
@@ -43,8 +44,8 @@ const NAV_GROUPS = [
     label: "Academic Management",
     icon: AcademicCapIcon,
     items: [
-      { label: "Programmes", href: "/courses", icon: AcademicCapIcon },
-      { label: "Academic responsibilities", href: "/admin/faculty", icon: AdjustmentsHorizontalIcon },
+      { label: "Course Master", href: "/admin/courses", icon: AcademicCapIcon },
+      { label: "Academic responsibilities", href: "/admin/academic-responsibilities", icon: AdjustmentsHorizontalIcon },
     ],
   },
   {
@@ -74,6 +75,11 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "AI Administration",
+    icon: AdjustmentsHorizontalIcon,
+    items: [{ label: "AI Provider & Usage", href: "/admin/ai-provider", icon: ChartBarSquareIcon }],
+  },
+  {
     label: "System Administration",
     icon: ShieldCheckIcon,
     roles: ["super_admin"],
@@ -92,6 +98,15 @@ function initials(name) {
     .join("")
     .toUpperCase();
 }
+
+const BREADCRUMB_LINKS = {
+  Administration: "/admin-dashboard",
+  "Academic Management": "/admin/courses",
+  "People & Access": "/admin/students",
+  "Learning & Assessment": "/learning-sessions",
+  "Communication & Reports": "/admin/notifications",
+  "SYS Workspace": "/admin-dashboard",
+};
 
 export default function AdminShell({
   user,
@@ -199,21 +214,19 @@ export default function AdminShell({
       <aside id="admin-navigation" className={`${styles.sidebar} ${drawerOpen ? styles.drawerOpen : ""}`} aria-label="Administrator navigation">
         <div className={styles.sidebarBrand}>
           <Link href="/admin-dashboard" aria-label="SYS administrator dashboard" onClick={() => closeDrawer({ restoreFocus: false })}>
-            <Image
-              src="/branding/sys-v2/logos/SYS_Header_Logo_Dark.png"
-              alt="SYS — Strengthen Your Skills"
-              width={520}
-              height={144}
-              className={styles.sidebarLogo}
-              preload
-            />
-            <Image
+            <span className={styles.sidebarBrandMark}>
+              <Image
               src="/branding/sys-v2/logos/SYS_Symbol_Compact_Transparent.png"
               alt=""
-              width={256}
-              height={248}
-              className={styles.compactLogo}
-            />
+              width={44}
+              height={44}
+              preload
+              />
+            </span>
+            <span className={styles.sidebarBrandCopy}>
+              <strong>SYS — Strengthen Your Skills</strong>
+              <small>AI-Powered Learning Platform</small>
+            </span>
           </Link>
           <button className={styles.drawerClose} type="button" onClick={() => closeDrawer()} aria-label="Close administrator navigation">
             <XMarkIcon aria-hidden="true" />
@@ -253,6 +266,7 @@ export default function AdminShell({
             <strong>SYS — Strengthen Your Skills</strong>
             <span>Shape Your Successful Future.</span>
             <small>© {currentYear} SYS</small>
+            <small>Developed by Dr. Sudhakar Bolleddu</small>
           </div>
           <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? <ChevronDoubleRightIcon aria-hidden="true" /> : <ChevronDoubleLeftIcon aria-hidden="true" />}
@@ -270,7 +284,7 @@ export default function AdminShell({
               <Bars3Icon aria-hidden="true" />
             </button>
             <div>
-              <p>{breadcrumb} <span aria-hidden="true">/</span> {pageTitle}</p>
+              <p>{BREADCRUMB_LINKS[breadcrumb] ? <Link href={BREADCRUMB_LINKS[breadcrumb]}>{breadcrumb}</Link> : breadcrumb} <span aria-hidden="true">/</span> <b aria-current="page">{pageTitle}</b></p>
               <span>{scopeLabel || "Institution scope unavailable"}</span>
             </div>
           </div>
@@ -301,6 +315,7 @@ export default function AdminShell({
         </header>
 
         <main className={styles.adminMain}>{children}</main>
+        <SYSFooter session={{ status: "authenticated", user }} />
       </div>
     </div>
   );

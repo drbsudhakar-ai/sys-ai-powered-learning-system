@@ -46,6 +46,7 @@ class UserOut(BaseModel):
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     college: Optional[str] = None
+    academic_program: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
     admission_year: Optional[int] = None
@@ -55,11 +56,20 @@ class UserOut(BaseModel):
     photo_url: Optional[str] = None
     is_active: bool = True
     account_status: str = "PENDING_ACTIVATION"
+    registration_complete: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class SelfProfileUpdate(BaseModel):
+    """Personal fields a student or faculty member may maintain directly."""
+
+    mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
+
+    model_config = {"extra": "forbid"}
 
 
 class AdminUserCreate(BaseModel):
@@ -71,6 +81,7 @@ class AdminUserCreate(BaseModel):
     employee_code: Optional[str] = Field(None, max_length=50)
     photo_url: Optional[str] = None
     college: Optional[str] = Field(None, max_length=160)
+    academic_program: Optional[str] = Field(None, max_length=160)
     department: Optional[str] = Field(None, max_length=160)
     designation: Optional[str] = Field(None, max_length=120)
     admission_year: Optional[int] = Field(None, ge=1900, le=2200)
@@ -92,6 +103,7 @@ class AdminUserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[SecretStr] = None
     college: Optional[str] = Field(None, max_length=160)
+    academic_program: Optional[str] = Field(None, max_length=160)
     department: Optional[str] = Field(None, max_length=160)
     designation: Optional[str] = Field(None, max_length=120)
     admission_year: Optional[int] = Field(None, ge=1900, le=2200)
@@ -107,19 +119,27 @@ class MasterProgrammeOut(BaseModel):
     title: str
 
 
+class MasterSubjectOut(BaseModel):
+    id: int
+    name: str
+
+
 class AdminMasterRecordOut(BaseModel):
     id: int
     role: ProvisionableRole
     name: str
+    photo_url: Optional[str] = None
     roll_number: Optional[str] = None
     employee_code: Optional[str] = None
     email: Optional[EmailStr] = None
     email_verified: bool
+    mobile_number: Optional[str] = None
     mobile_masked: Optional[str] = None
     mobile_verified: bool
     registration_status: str
     is_active: bool
     college: Optional[str] = None
+    academic_program: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
     admission_year: Optional[int] = None
@@ -140,6 +160,13 @@ class AdminMasterPageOut(BaseModel):
     total: int = Field(..., ge=0)
     page: int = Field(..., ge=1)
     page_size: Literal[25, 50, 100]
+
+
+class AdminMasterProfileOut(BaseModel):
+    record: AdminMasterRecordOut
+    coordinator_courses: List[MasterProgrammeOut] = []
+    expert_subjects: List[MasterSubjectOut] = []
+    activity: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AdminBulkStatusRequest(BaseModel):
@@ -198,9 +225,21 @@ class ActivationStartRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class ActivationIdentitySummary(BaseModel):
+    name: str
+    role: ProvisionableRole
+    institutional_id: str
+    college: Optional[str] = None
+    academic_program: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    masked_email: Optional[str] = None
+
+
 class ChallengeStartResponse(BaseModel):
     challenge_id: str
     message: str
+    identity: Optional[ActivationIdentitySummary] = None
 
 
 class OtpVerifyRequest(BaseModel):
@@ -229,8 +268,8 @@ class ActivationCompleteRequest(BaseModel):
     ownership_authorization: str = Field(..., min_length=20, max_length=200)
     email: EmailStr
     email_authorization: str = Field(..., min_length=20, max_length=200)
-    mobile_number: str = Field(..., min_length=8, max_length=20)
-    mobile_authorization: str = Field(..., min_length=20, max_length=200)
+    mobile_number: Optional[str] = Field(None, min_length=8, max_length=20)
+    mobile_authorization: Optional[str] = Field(None, min_length=20, max_length=200)
     password: SecretStr
     confirm_password: SecretStr
 
@@ -299,6 +338,8 @@ class SubjectExpertOut(BaseModel):
     faculty_email: Optional[EmailStr] = None
     subject_id: int
     subject_name: str
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
     assigned_at: Optional[datetime] = None
 
     class Config:
@@ -335,6 +376,7 @@ class CourseBase(BaseModel):
     target_purpose: Optional[str] = Field(None, max_length=300)
     programme_code: Optional[str] = Field(None, max_length=80)
     is_active: Optional[bool] = None
+    self_enrollment_enabled: bool = False
 
 class CourseCreate(CourseBase):
     pass
@@ -350,17 +392,62 @@ class CourseUpdate(BaseModel):
     target_purpose: Optional[str] = Field(None, max_length=300)
     programme_code: Optional[str] = Field(None, max_length=80)
     is_active: Optional[bool] = None
+    self_enrollment_enabled: Optional[bool] = None
 
 class CourseOut(CourseBase):
     id: int
     created_by: Optional[int] = None
     created_at: datetime
     programme_category: str
-    is_active: bool = True
+    is_active: bool = False
+    publication_status: str = "DRAFT"
+    submitted_for_review_at: Optional[datetime] = None
+    submitted_for_review_by: Optional[int] = None
+    published_at: Optional[datetime] = None
+    published_by: Optional[int] = None
+    archived_at: Optional[datetime] = None
+    archived_by: Optional[int] = None
     course_coordinators: List[CourseCoordinatorOut] = []
+    subject_count: int = 0
+    unit_count: int = 0
+    topic_count: int = 0
+    subtopic_count: int = 0
+    student_count: int = 0
+    subject_expert_count: int = 0
+    syllabus_configuration: Optional[dict] = None
+    assessment_count: int = 0
+    learning_session_count: int = 0
+    question_count: int = 0
 
     class Config:
         from_attributes = True
+
+
+class EnrollmentCohortRequest(BaseModel):
+    academic_program: Optional[str] = Field(None, max_length=160)
+    present_year: Optional[int] = Field(None, ge=1, le=20)
+    student_ids: List[int] = Field(default_factory=list, max_length=500)
+
+    model_config = {"extra": "forbid"}
+
+
+class EnrollmentBulkRequest(EnrollmentCohortRequest):
+    reenroll_existing: bool = False
+    reason: Optional[str] = Field(None, max_length=255)
+
+
+class EnrollmentStatusRequest(BaseModel):
+    status: Literal["PENDING_ACTIVATION", "ACTIVE", "COMPLETED", "WITHDRAWN", "SUSPENDED"]
+    reason: Optional[str] = Field(None, max_length=255)
+
+    model_config = {"extra": "forbid"}
+
+
+class CoursePublishRequest(BaseModel):
+    activate_pending: bool = False
+    expected_pending_count: Optional[int] = Field(None, ge=0)
+
+    model_config = {"extra": "forbid"}
 
 
 # =========================
@@ -484,6 +571,39 @@ class TopicCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     subject_id: int
+    unit_id: Optional[int] = None
+
+class UnitCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    subject_id: int
+    sequence: int = Field(1, ge=1)
+
+class UnitOut(UnitCreate):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SyllabusImportRow(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200)
+    unit: str = Field(..., min_length=1, max_length=200)
+    topic: str = Field(..., min_length=1, max_length=200)
+    subtopic: Optional[str] = Field(None, max_length=200)
+    subject_description: Optional[str] = Field(None, max_length=500)
+    unit_description: Optional[str] = Field(None, max_length=500)
+    topic_description: Optional[str] = Field(None, max_length=500)
+    subtopic_description: Optional[str] = Field(None, max_length=500)
+    unit_sequence: int = Field(1, ge=1)
+
+class SyllabusImportRequest(BaseModel):
+    rows: List[SyllabusImportRow] = Field(..., min_length=1, max_length=5000)
+
+class SyllabusItemUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    sequence: Optional[int] = Field(None, ge=1)
 
 class TopicOut(TopicCreate):
     id: int
@@ -684,6 +804,17 @@ class TopicWeightItem(BaseModel):
 class TopicWeightageBulk(BaseModel):
     subject_id: int
     items: List[TopicWeightItem]
+
+
+class AcademicWeightageItem(BaseModel):
+    item_id: int = Field(..., ge=1)
+    weight_percent: float = Field(..., ge=0, le=100, allow_inf_nan=False)
+
+
+class AcademicWeightageGroupUpdate(BaseModel):
+    level: Literal["subject", "unit", "topic", "subtopic"]
+    parent_id: int = Field(..., ge=1)
+    items: List[AcademicWeightageItem] = Field(..., min_length=1, max_length=1000)
 
 
 class PriorityWeightsIn(BaseModel):
@@ -980,11 +1111,17 @@ class LecturePlaybackControlIn(BaseModel):
 
 class LectureInteractIn(BaseModel):
     intent: str
-    message: Optional[str] = None
-    answer: Optional[str] = None
+    message: Optional[str] = Field(default=None, max_length=2000)
+    answer: Optional[str] = Field(default=None, max_length=2000)
 
 
 class LectureStateOut(BaseModel):
+    syllabus_review_required: bool = False
+    visited_step_indices: List[int] = Field(default_factory=list)
+    can_complete: bool = False
+    lesson_completed: bool = False
+    can_manage_classroom: bool = False
+    recap: str = ""
     session_id: int
     activity_id: int
     title: str
@@ -994,6 +1131,10 @@ class LectureStateOut(BaseModel):
     subject_id: Optional[int] = None
     topic_id: Optional[int] = None
     subtopic_id: Optional[int] = None
+    course_title: Optional[str] = None
+    subject_name: Optional[str] = None
+    topic_name: Optional[str] = None
+    subtopic_name: Optional[str] = None
     objectives: List[Dict[str, Any]] = []
     teaching_plan: Dict[str, Any]
     current_step_index: int

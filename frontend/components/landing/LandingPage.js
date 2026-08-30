@@ -294,25 +294,20 @@ function toggleSet(setter, id) {
 function Brand({ footer = false }) {
   return (
     <Link href="/" className={styles.brand} aria-label="SYS — Strengthen Your Skills home">
-      <Image
-        src={`${BRAND_ROOT}/logos/SYS_Header_Logo_Dark.png`}
-        alt="SYS — Strengthen Your Skills, AI-Powered Learning Platform"
-        width={1200}
-        height={280}
-        priority={!footer}
-        sizes={footer ? "(max-width: 680px) 285px, 295px" : "(max-width: 720px) 54px, 310px"}
-        className={styles.brandDesktop}
-      />
-      <Image
-        src={`${BRAND_ROOT}/logos/SYS_Symbol_Compact_Transparent.png`}
-        alt=""
-        width={900}
-        height={872}
-        priority={!footer}
-        sizes="54px"
-        className={styles.brandMobile}
-      />
-      <span className={styles.srOnly}>SYS — Strengthen Your Skills</span>
+      <span className={styles.brandMark}>
+        <Image
+          src={`${BRAND_ROOT}/logos/SYS_Symbol_Compact_Transparent.png`}
+          alt=""
+          width={900}
+          height={872}
+          priority={!footer}
+          sizes={footer ? "48px" : "52px"}
+        />
+      </span>
+      <span className={styles.brandCopy}>
+        <strong>SYS — Strengthen Your Skills</strong>
+        <small>AI-Powered Learning Platform</small>
+      </span>
     </Link>
   );
 }
@@ -362,9 +357,9 @@ function Hero() {
       <div className={styles.heroInner}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}><SparklesIcon /> AI-Powered Learning Platform</p>
-          <h1 id="homepage-title">One learning journey.<br /><span>Clearer next steps.</span></h1>
+          <h1 id="homepage-title">Learn with confidence.<br /><span>Strengthen Your Skills.</span></h1>
           <p className={styles.heroLead}>
-            SYS connects learning, practice, assessment, performance analysis and targeted support so students and educators can act on the right next step.
+            Personalized learning, intelligent assessment and timely support—helping every student build skills, prepare for opportunities and move forward with confidence.
           </p>
           <div className={styles.heroActions}>
             <Link href="/login" className={styles.primaryButton}>Login to SYS <ArrowRightIcon /></Link>
@@ -373,15 +368,53 @@ function Hero() {
           <p className={styles.roleAccess}><ShieldCheckIcon /> One Login for Student, Faculty and Administrator access.</p>
         </div>
         <div className={styles.heroIdentity}>
-          <div className={styles.identityCard}>
-            <Image
-              src={`${BRAND_ROOT}/logos/SYS_Master_Lockup_Transparent.png`}
-              alt="SYS — Strengthen Your Skills. Shape Your Successful Future."
-              width={900}
-              height={650}
-              priority
-              sizes="(max-width: 820px) 86vw, 510px"
-            />
+          <div className={styles.learningScene} role="img" aria-label="Glossy three-dimensional SYS intelligent learning workspace">
+            <span className={styles.sceneGlow} aria-hidden="true" />
+            <span className={styles.sceneGrid} aria-hidden="true" />
+
+            <div className={styles.glassDisplay} aria-hidden="true">
+              <span className={styles.displayReflection} />
+              <div className={styles.displayToolbar}>
+                <span /><span /><span />
+                <small>SYS LEARNING INTELLIGENCE</small>
+              </div>
+              <div className={styles.displayContent}>
+                <span className={styles.logoAura} />
+                <Image
+                  src={`${BRAND_ROOT}/logos/SYS_Symbol_Master_Transparent.png`}
+                  alt=""
+                  width={900}
+                  height={872}
+                  priority
+                  sizes="(max-width: 820px) 58vw, 255px"
+                  className={styles.sceneLogo}
+                />
+                <div className={styles.intelligenceLine}><span /><span /><span /><span /></div>
+                <p>Learn · Assess · Improve</p>
+              </div>
+            </div>
+
+            <div className={`${styles.sceneCard} ${styles.learningCard}`} aria-hidden="true">
+              <span><BookOpenIcon /></span>
+              <div><small>PERSONALIZED</small><strong>Learning</strong></div>
+              <i>01</i>
+            </div>
+            <div className={`${styles.sceneCard} ${styles.assessmentCard}`} aria-hidden="true">
+              <span><ClipboardDocumentCheckIcon /></span>
+              <div><small>INTELLIGENT</small><strong>Assessment</strong></div>
+              <i>02</i>
+            </div>
+            <div className={`${styles.sceneCard} ${styles.progressCard}`} aria-hidden="true">
+              <span><ChartBarSquareIcon /></span>
+              <div><small>CONTINUOUS</small><strong>Progress</strong></div>
+              <i>03</i>
+            </div>
+
+            <div className={styles.scenePlatform} aria-hidden="true">
+              <span className={styles.platformTop} />
+              <span className={styles.platformEdge} />
+              <span className={styles.platformLight} />
+            </div>
           </div>
         </div>
       </div>
@@ -635,7 +668,11 @@ function Footer() {
           <nav aria-label="Platform links"><h2>Platform</h2><Link href="/programs">Programs page</Link><Link href="/login">Login</Link></nav>
         </div>
       </div>
-      <div className={styles.footerBottom}><span>© {new Date().getFullYear()} SYS — Strengthen Your Skills.</span><span>Shape Your Successful Future.</span></div>
+      <div className={styles.footerBottom}>
+        <span>© {new Date().getFullYear()} SYS — Strengthen Your Skills. All rights reserved.</span>
+        <span>Conceived and developed by <strong>Dr. Sudhakar Bolleddu</strong></span>
+        <span>Shape Your Successful Future.</span>
+      </div>
     </footer>
   );
 }

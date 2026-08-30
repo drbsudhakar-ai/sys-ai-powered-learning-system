@@ -8,7 +8,7 @@
         "start": "next start",
         "lint": "next lint",
         "test:auth": "node --test tests/auth.test.mjs",
-        "test:frontend": "node --test tests/auth.test.mjs tests/admin-master.test.mjs"
+        "test:frontend": "node --test tests/auth.test.mjs tests/admin-master.test.mjs tests/master-profile.test.mjs tests/course-master.test.mjs tests/syllabus.test.mjs tests/academic-ownership.test.mjs tests/academic-weightages.test.mjs tests/course-reports.test.mjs tests/course-publication.test.mjs tests/course-enrollment.test.mjs tests/phase-c-learning.test.mjs"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",

@@ -32,14 +32,14 @@ export default function RegisterPage() {
   const [phase, setPhase] = useState("identity");
   const [role, setRole] = useState("student");
   const [identifier, setIdentifier] = useState("");
-  const [ownershipChannel, setOwnershipChannel] = useState("email");
+  const ownershipChannel = "email";
   const [challengeId, setChallengeId] = useState("");
+  const [institutionalIdentity, setInstitutionalIdentity] = useState(null);
   const [otp, setOtp] = useState("");
   const [ownershipAuthorization, setOwnershipAuthorization] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [emailAuthorization, setEmailAuthorization] = useState("");
-  const [mobileAuthorization, setMobileAuthorization] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -77,10 +77,11 @@ export default function RegisterPage() {
         channel: ownershipChannel,
       });
       setChallengeId(data.challenge_id);
+      setInstitutionalIdentity(data.identity || null);
       setOtp("");
       setPhase("ownership");
       setResendSeconds(60);
-      setNotice("If the institutional details are eligible, a verification code has been sent to the contact already recorded by your administrator.");
+      setNotice(data.identity ? "" : data.message);
     } catch (requestError) {
       setError(apiMessage(requestError, SAFE_REGISTRATION_ERROR));
     } finally {
@@ -123,7 +124,7 @@ export default function RegisterPage() {
     try {
       await requestContactOtp("email", email.trim().toLowerCase());
       setPhase("emailOtp");
-      setNotice("Enter the code sent to the personal email address you provided.");
+      setNotice("Enter the code sent to your personal email. After verification, this address becomes your primary SYS login email.");
     } catch (requestError) {
       setError(apiMessage(requestError, "Your contact details could not be verified. Check them and try again."));
     } finally {
@@ -144,31 +145,9 @@ export default function RegisterPage() {
         code: otp,
       });
       setEmailAuthorization(data.authorization);
-      await requestContactOtp("mobile", mobile);
-      setPhase("mobileOtp");
-      setNotice("Email verified. Enter the code sent to your personal mobile number.");
-    } catch (requestError) {
-      setError(apiMessage(requestError, "The verification code is invalid or expired."));
-    } finally {
-      finishRequest();
-    }
-  }
-
-  async function verifyMobile(event) {
-    event.preventDefault();
-    if (submitting || otp.length !== 6) return;
-    beginRequest();
-    try {
-      const { data } = await verifyActivationContact({
-        action: "verify",
-        ownership_authorization: ownershipAuthorization,
-        contact_type: "mobile",
-        challenge_id: challengeId,
-        code: otp,
-      });
-      setMobileAuthorization(data.authorization);
       setOtp("");
       setPhase("password");
+      setNotice("Email verified. Create your secure SYS password.");
     } catch (requestError) {
       setError(apiMessage(requestError, "The verification code is invalid or expired."));
     } finally {
@@ -184,8 +163,6 @@ export default function RegisterPage() {
         await requestOwnership();
       } else if (phase === "emailOtp") {
         await requestContactOtp("email", email.trim().toLowerCase());
-      } else if (phase === "mobileOtp") {
-        await requestContactOtp("mobile", mobile);
       }
       setNotice("A new verification code has been requested. Previous codes are no longer valid.");
     } catch (requestError) {
@@ -208,8 +185,8 @@ export default function RegisterPage() {
         ownership_authorization: ownershipAuthorization,
         email: email.trim().toLowerCase(),
         email_authorization: emailAuthorization,
-        mobile_number: mobile,
-        mobile_authorization: mobileAuthorization,
+        mobile_number: mobile.trim() || null,
+        mobile_authorization: null,
         password,
         confirm_password: confirmPassword,
       });
@@ -273,17 +250,7 @@ export default function RegisterPage() {
               <label htmlFor={institutionalId}>{role === "student" ? "Roll Number" : "Employee Code"}</label>
               <input id={institutionalId} value={identifier} onChange={(event) => setIdentifier(event.target.value)} required disabled={submitting} autoComplete="off" />
             </div>
-            <fieldset className={styles.choiceFieldset}>
-              <legend>Send ownership code to the contact on record</legend>
-              <div className={styles.channelChoice}>
-                {[["email", "Email"], ["mobile", "Mobile"]].map(([value, label]) => (
-                  <label key={value}>
-                    <input type="radio" name="channel" value={value} checked={ownershipChannel === value} onChange={() => setOwnershipChannel(value)} />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <p className={styles.fieldHelp}>Your ownership code will be sent to the institutional email address already recorded by your SYS administrator.</p>
             <button className={styles.submitButton} type="submit" disabled={submitting}>
               {submitting ? <span className={styles.spinner} aria-hidden="true" /> : null}
               Verify eligibility <ArrowRightIcon aria-hidden="true" />
@@ -292,33 +259,33 @@ export default function RegisterPage() {
         )}
 
         {phase === "ownership" && (
-          <OtpStep title="Verify institutional ownership" otp={otp} setOtp={setOtp} onSubmit={verifyOwnership} onResend={resendCurrentOtp} resendSeconds={resendSeconds} submitting={submitting} />
+          <>
+            <InstitutionalIdentity identity={institutionalIdentity} />
+            <OtpStep title="Verify institutional ownership" otp={otp} setOtp={setOtp} onSubmit={verifyOwnership} onResend={resendCurrentOtp} resendSeconds={resendSeconds} submitting={submitting} />
+          </>
         )}
 
         {phase === "contacts" && (
           <form className={styles.form} onSubmit={submitContacts}>
+            <div className={styles.loginEmailNotice} role="note"><strong>Your personal email will become your primary SYS login email.</strong><span>Use an email address that you can access regularly. SYS will verify it before creating your account.</span></div>
             <div className={styles.fieldGroup}>
               <label htmlFor={emailId}>Personal email address</label>
               <input id={emailId} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={submitting} />
             </div>
             <div className={styles.fieldGroup}>
-              <label htmlFor={mobileId}>Personal mobile number</label>
-              <input id={mobileId} type="tel" autoComplete="tel" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} required disabled={submitting} />
-              <p>Use your unique personal mobile in E.164 format. Do not use a shared or guardian number as a login identifier.</p>
+              <label htmlFor={mobileId}>Personal mobile number <span>(optional)</span></label>
+              <input id={mobileId} type="tel" autoComplete="tel" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} disabled={submitting} />
+              <p>Use your personal mobile in E.164 format. It will remain unverified until institutional SMS verification becomes available.</p>
             </div>
             <button className={styles.submitButton} type="submit" disabled={submitting}>
-              Send contact verification codes <ArrowRightIcon aria-hidden="true" />
+              Verify personal email <ArrowRightIcon aria-hidden="true" />
             </button>
           </form>
         )}
 
         {phase === "emailOtp" && (
-          <OtpStep title="Verify your personal email" otp={otp} setOtp={setOtp} onSubmit={verifyEmail} onResend={resendCurrentOtp} resendSeconds={resendSeconds} submitting={submitting} />
+          <OtpStep title="Verify your personal login email" otp={otp} setOtp={setOtp} onSubmit={verifyEmail} onResend={resendCurrentOtp} resendSeconds={resendSeconds} submitting={submitting} />
         )}
-        {phase === "mobileOtp" && (
-          <OtpStep title="Verify your personal mobile" otp={otp} setOtp={setOtp} onSubmit={verifyMobile} onResend={resendCurrentOtp} resendSeconds={resendSeconds} submitting={submitting} />
-        )}
-
         {phase === "password" && (
           <form className={styles.form} onSubmit={finishRegistration}>
             <div className={styles.fieldGroup}>
@@ -344,6 +311,7 @@ export default function RegisterPage() {
         {phase === "success" && (
           <div className={styles.successPanel} role="status">
             <p>Your student or faculty role was securely derived from the institutional record you claimed.</p>
+            <p>Use your verified personal email as your primary SYS login email. You may also use another verified identifier supported on the login page.</p>
             <Link href="/login?reason=registered" className={styles.submitButton}>Continue to login <ArrowRightIcon aria-hidden="true" /></Link>
           </div>
         )}
@@ -353,6 +321,25 @@ export default function RegisterPage() {
         )}
       </AuthShell>
     </>
+  );
+}
+
+function InstitutionalIdentity({ identity }) {
+  if (!identity) {
+    return <div className={styles.identitySupport} role="status"><strong>Unable to confirm an eligible institutional record.</strong><span>Check the roll number or employee code. If the details are correct, contact your SYS administrator.</span></div>;
+  }
+  const roleLabel = identity.role === "student" ? "Student" : "Faculty";
+  const identifierLabel = identity.role === "student" ? "Roll number" : "Employee code";
+  const academicDetail = identity.role === "student" ? identity.academic_program : [identity.department, identity.designation].filter(Boolean).join(" · ");
+  return (
+    <section className={styles.identityConfirmation} aria-labelledby="confirmed-record-title">
+      <div><p>Institutional record confirmed</p><h3 id="confirmed-record-title">{identity.name}</h3><span>{roleLabel} · {identifierLabel} {identity.institutional_id}</span></div>
+      <dl>
+        {identity.college ? <div><dt>College</dt><dd>{identity.college}</dd></div> : null}
+        {academicDetail ? <div><dt>{identity.role === "student" ? "Academic programme" : "Academic responsibility"}</dt><dd>{academicDetail}</dd></div> : null}
+      </dl>
+      {identity.masked_email ? <div className={styles.emailConfirmation}><strong>Verification code sent to: <span>{identity.masked_email}</span></strong><p>Confirm that this is your registered institutional email. If you do not recognize it or cannot access it, contact your SYS administrator. For your security, the complete email address is not displayed.</p></div> : <div className={styles.identitySupport}><strong>No usable institutional email is recorded.</strong><span>Contact your SYS administrator before continuing registration.</span></div>}
+    </section>
   );
 }
 

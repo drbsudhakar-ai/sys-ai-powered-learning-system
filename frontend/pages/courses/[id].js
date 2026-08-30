@@ -20,6 +20,7 @@ export default function CourseDetailsPage() {
   const [error, setError] = useState("");
   const [enrolled, setEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -170,13 +171,18 @@ export default function CourseDetailsPage() {
               <button
                 type="button"
                 className="btn-primary"
-                disabled={enrolled || enrolling}
+                disabled={enrolling}
                 onClick={async () => {
+                  if (enrolled) {
+                    router.push(`/courses/${course.id}/workspace`);
+                    return;
+                  }
                   setEnrolling(true);
                   setError("");
                   try {
                     await enrollInCourse(course.id);
                     setEnrolled(true);
+                    router.push(`/courses/${course.id}/workspace`);
                   } catch (err) {
                     setError(getApiErrorMessage(err, "Unable to enroll."));
                   } finally {
@@ -184,7 +190,7 @@ export default function CourseDetailsPage() {
                   }
                 }}
               >
-                {enrolled ? "Enrolled" : "Enroll in this programme"}
+                {enrolled ? "Open learning workspace" : "Enroll in this course"}
               </button>
             </div>
           )}

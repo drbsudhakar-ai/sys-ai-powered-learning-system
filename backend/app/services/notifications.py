@@ -76,6 +76,31 @@ MANDATORY_EVENTS = {
     "SIGNIFICANT_PERFORMANCE_DECLINE",
 }
 
+EVENT_CATEGORY.update({"SYLLABUS_REVIEW_SUBMITTED": "IMPORTANT_ALERTS", "SYLLABUS_REVIEW_DECIDED": "IMPORTANT_ALERTS"})
+
+
+def enqueue_targeted_event(db, *, event, users, course_id, title, message, link_path, payload):
+    """Transactional outbox for explicit academic recipients; caller commits once.
+
+    No broad recipient expansion and no external SMTP call before approval commits.
+    Delivery uses the existing channel dispatch/retry engine after the transaction.
+    """
+    if event not in {"SYLLABUS_REVIEW_SUBMITTED", "SYLLABUS_REVIEW_DECIDED"}:
+        raise ValueError("Unsupported targeted event")
+    users = {u.id: u for u in users if u and u.is_active and u.account_status == "ACTIVE"}
+    note = models.Notification(event=event, course_id=course_id, recipients=[u.email for u in users.values() if u.email],
+        title=title, subject=title, body=message, status="PENDING", retry_count=0, source_module="SYLLABUS",
+        severity="INFO", priority=5, payload=payload, link_path=link_path, channels=["EMAIL", "IN_APP"])
+    db.add(note); db.flush()
+    for u in users.values():
+        for channel in ("IN_APP", "EMAIL"):
+            if channel == "EMAIL" and not u.email:
+                continue
+            if _pref_allows(db, u.id, event, channel):
+                db.add(models.NotificationDelivery(notification_id=note.id, user_id=u.id, email=u.email,
+                    channel=channel, status="PENDING"))
+    return note.id
+
 
 class NotificationChannel:
     name = "BASE"

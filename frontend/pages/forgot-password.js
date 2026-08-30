@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
   const confirmId = useId();
   const [phase, setPhase] = useState("identifier");
   const [identifier, setIdentifier] = useState("");
-  const [channel, setChannel] = useState("email");
+  const channel = "email";
   const [challengeId, setChallengeId] = useState("");
   const [otp, setOtp] = useState("");
   const [resetAuthorization, setResetAuthorization] = useState("");
@@ -130,11 +130,11 @@ export default function ForgotPasswordPage() {
     <>
       <Head>
         <title>Forgot password | SYS</title>
-        <meta name="description" content="Secure SYS password recovery with verified email or mobile OTP." />
+        <meta name="description" content="Secure SYS password recovery with verified email OTP." />
       </Head>
       <AuthShell
         introTitle="Recover access without exposing your account."
-        introDescription="SYS uses the verified email or unique personal mobile already linked to an active account. Recovery responses never reveal whether an identifier exists."
+        introDescription="SYS uses the verified email already linked to an active account. Recovery responses never reveal whether an identifier exists."
       >
         <div className={styles.formHeading}>
           <p className={styles.formEyebrow}>Secure account recovery</p>
@@ -151,17 +151,7 @@ export default function ForgotPasswordPage() {
               <label htmlFor={identifierId}>Known login identifier</label>
               <input id={identifierId} type="text" autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Email, +91 mobile, roll number or employee code" required disabled={submitting} />
             </div>
-            <fieldset className={styles.choiceFieldset}>
-              <legend>Receive verification code by</legend>
-              <div className={styles.channelChoice}>
-                {[["email", "Verified email"], ["mobile", "Verified mobile"]].map(([value, label]) => (
-                  <label key={value}>
-                    <input type="radio" name="channel" value={value} checked={channel === value} onChange={() => setChannel(value)} />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <p className={styles.fieldHelp}>The verification code is sent to the verified email already recorded for the account. Mobile recovery will become available after the institutional SMS service is configured.</p>
             <button className={styles.submitButton} type="submit" disabled={submitting}>
               {submitting ? <span className={styles.spinner} aria-hidden="true" /> : null}
               Send verification code <ArrowRightIcon aria-hidden="true" />

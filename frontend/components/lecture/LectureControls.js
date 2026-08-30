@@ -11,6 +11,8 @@ export default function LectureControls({
   paused,
   askOpen,
   disabled,
+  canComplete = true,
+  completed = false,
 }) {
   return (
     <div className="lecture-controls" role="toolbar" aria-label="Lecture controls">
@@ -38,8 +40,8 @@ export default function LectureControls({
       <button type="button" className="btn-secondary" onClick={onFast} disabled={disabled}>
         Faster
       </button>
-      <button type="button" className="btn-primary" onClick={onComplete} disabled={disabled}>
-        Complete
+      <button type="button" className="btn-primary" onClick={onComplete} disabled={disabled || !canComplete || completed} title={canComplete ? "Confirm lesson completion" : "Visit every stage and review the recap first"}>
+        {completed ? "Completed" : "Complete lesson"}
       </button>
     </div>
   );
