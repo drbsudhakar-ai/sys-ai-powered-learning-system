@@ -11,6 +11,7 @@ from app.routes import auth, courses, course_enrollments, assessments, resources
 from app.routes import students, faculty, ai_management
 from app.routes import syllabus_review
 from app.routes import syllabus_subjects
+from app.routes import academic_content
 from app.routes import auth as auth_routes
 
 # Create DB tables (Alembic recommended for production migrations)
@@ -48,6 +49,7 @@ app.include_router(auth_routes.router)
 app.include_router(ai_management.router)
 app.include_router(syllabus_review.router)
 app.include_router(syllabus_subjects.router)
+app.include_router(academic_content.router)
 app.include_router(courses.router)
 app.include_router(course_enrollments.router)
 app.include_router(assessments.router)

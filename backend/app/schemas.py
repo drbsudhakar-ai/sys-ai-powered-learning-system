@@ -1273,3 +1273,72 @@ class ResourceOut(ResourceBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+# P036 Professor-grade academic content foundation
+AcademicSourceStatus = Literal["DRAFT", "VERIFIED", "REJECTED", "SUPERSEDED"]
+KnowledgePackageStatus = Literal["DRAFT", "SOURCE_REVIEW", "EXPERT_VERIFIED", "APPROVED", "CHANGES_REQUESTED", "SUPERSEDED"]
+ProfessorProfileStatus = Literal["DRAFT", "APPROVED", "SUPERSEDED"]
+
+
+class AcademicSourceCreate(BaseModel):
+    course_id: int
+    subject_id: Optional[int] = None
+    source_code: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=300)
+    source_type: Literal["OFFICIAL_SYLLABUS", "GOVERNMENT", "TEXTBOOK", "FACULTY_NOTE", "JOURNAL", "WEB_REFERENCE", "OTHER"]
+    issuing_authority: Optional[str] = Field(None, max_length=240)
+    publication_date: Optional[datetime] = None
+    canonical_url: Optional[str] = Field(None, max_length=1000)
+    rights_classification: Literal["REFERENCE_ONLY", "LICENSED", "OPEN", "PUBLIC_DOMAIN", "INSTITUTION_OWNED"] = "REFERENCE_ONLY"
+    content_text: str = Field(min_length=1, max_length=200000)
+    revision_notes: Optional[str] = Field(None, max_length=1000)
+    model_config = {"extra": "forbid"}
+
+
+class AcademicSourceDecision(BaseModel):
+    action: Literal["VERIFY", "REJECT"]
+    comment: str = Field(min_length=5, max_length=1000)
+    model_config = {"extra": "forbid"}
+
+
+class KnowledgePackageRevisionCreate(BaseModel):
+    topic_id: int
+    language: str = Field(default="en-IN", min_length=2, max_length=16)
+    objectives: List[str] = Field(min_length=1, max_length=20)
+    prerequisites: List[str] = Field(default_factory=list, max_length=20)
+    concepts: List[Dict[str, Any]] = Field(min_length=1, max_length=50)
+    definitions: List[Dict[str, Any]] = Field(default_factory=list, max_length=50)
+    formulas: List[Dict[str, Any]] = Field(default_factory=list, max_length=50)
+    verified_facts: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
+    worked_examples: List[Dict[str, Any]] = Field(default_factory=list, max_length=30)
+    misconceptions: List[Dict[str, Any]] = Field(default_factory=list, max_length=30)
+    exam_relevance: Dict[str, Any] = Field(default_factory=dict)
+    subtopic_coverage: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
+    source_revision_ids: List[int] = Field(min_length=1, max_length=100)
+    model_config = {"extra": "forbid"}
+
+
+class AcademicWorkflowDecision(BaseModel):
+    action: Literal["SUBMIT", "EXPERT_VERIFY", "APPROVE", "REQUEST_CHANGES", "SUPERSEDE"]
+    comment: str = Field(min_length=5, max_length=1000)
+    model_config = {"extra": "forbid"}
+
+
+class ProfessorProfileUpsert(BaseModel):
+    subject_id: int
+    language: str = Field(default="en-IN", min_length=2, max_length=16)
+    teaching_strategy: Dict[str, Any]
+    required_stage_types: List[str] = Field(min_length=5, max_length=30)
+    example_rules: List[str] = Field(default_factory=list, max_length=30)
+    narration_rules: List[str] = Field(min_length=1, max_length=30)
+    visual_rules: List[str] = Field(default_factory=list, max_length=30)
+    assessment_rules: List[str] = Field(default_factory=list, max_length=30)
+    accuracy_constraints: List[str] = Field(min_length=1, max_length=30)
+    model_config = {"extra": "forbid"}
+
+
+class TopicReviewerAssignmentCreate(BaseModel):
+    topic_id: int
+    faculty_id: int
+    model_config = {"extra": "forbid"}

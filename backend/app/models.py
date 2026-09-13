@@ -1394,6 +1394,115 @@ class AIUsageEvent(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
 
+# =========================
+# P036 Professor-grade academic content foundation
+# =========================
+
+class AcademicSource(Base):
+    __tablename__ = "academic_sources"
+    __table_args__ = (UniqueConstraint("course_id", "source_code", name="uq_academic_source_course_code"),)
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=True, index=True)
+    source_code = Column(String(80), nullable=False)
+    title = Column(String(300), nullable=False)
+    source_type = Column(String(40), nullable=False)
+    issuing_authority = Column(String(240), nullable=True)
+    publication_date = Column(DateTime(timezone=True), nullable=True)
+    canonical_url = Column(String(1000), nullable=True)
+    rights_classification = Column(String(40), nullable=False, default="REFERENCE_ONLY", server_default="REFERENCE_ONLY")
+    verification_status = Column(String(32), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    current_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    verified_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class AcademicSourceRevision(Base):
+    __tablename__ = "academic_source_revisions"
+    __table_args__ = (UniqueConstraint("source_id", "revision", name="uq_academic_source_revision"),)
+    id = Column(Integer, primary_key=True)
+    source_id = Column(Integer, ForeignKey("academic_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision = Column(Integer, nullable=False)
+    content_text = Column(Text, nullable=False)
+    content_hash = Column(String(64), nullable=False, index=True)
+    notes = Column(String(1000), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class TopicKnowledgePackage(Base):
+    __tablename__ = "topic_knowledge_packages"
+    __table_args__ = (UniqueConstraint("topic_id", "language", name="uq_topic_knowledge_language"),)
+    id = Column(Integer, primary_key=True)
+    topic_id = Column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), nullable=False, index=True)
+    language = Column(String(16), nullable=False, default="en-IN", server_default="en-IN")
+    status = Column(String(32), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    current_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class TopicKnowledgeRevision(Base):
+    __tablename__ = "topic_knowledge_revisions"
+    __table_args__ = (UniqueConstraint("package_id", "revision", name="uq_topic_knowledge_revision"),)
+    id = Column(Integer, primary_key=True)
+    package_id = Column(Integer, ForeignKey("topic_knowledge_packages.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision = Column(Integer, nullable=False)
+    objectives = Column(JSON, nullable=False, default=list)
+    prerequisites = Column(JSON, nullable=False, default=list)
+    concepts = Column(JSON, nullable=False, default=list)
+    definitions = Column(JSON, nullable=False, default=list)
+    formulas = Column(JSON, nullable=False, default=list)
+    verified_facts = Column(JSON, nullable=False, default=list)
+    worked_examples = Column(JSON, nullable=False, default=list)
+    misconceptions = Column(JSON, nullable=False, default=list)
+    exam_relevance = Column(JSON, nullable=False, default=dict)
+    subtopic_coverage = Column(JSON, nullable=False, default=list)
+    source_revision_ids = Column(JSON, nullable=False, default=list)
+    content_hash = Column(String(64), nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SubjectProfessorProfile(Base):
+    __tablename__ = "subject_professor_profiles"
+    __table_args__ = (UniqueConstraint("subject_id", "language", name="uq_subject_professor_language"),)
+    id = Column(Integer, primary_key=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    language = Column(String(16), nullable=False, default="en-IN", server_default="en-IN")
+    version = Column(Integer, nullable=False, default=1, server_default="1")
+    status = Column(String(32), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    teaching_strategy = Column(JSON, nullable=False, default=dict)
+    required_stage_types = Column(JSON, nullable=False, default=list)
+    example_rules = Column(JSON, nullable=False, default=list)
+    narration_rules = Column(JSON, nullable=False, default=list)
+    visual_rules = Column(JSON, nullable=False, default=list)
+    assessment_rules = Column(JSON, nullable=False, default=list)
+    accuracy_constraints = Column(JSON, nullable=False, default=list)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class TopicAcademicReviewerAssignment(Base):
+    __tablename__ = "topic_academic_reviewer_assignments"
+    __table_args__ = (UniqueConstraint("topic_id", "faculty_id", name="uq_topic_academic_reviewer"),)
+    id = Column(Integer, primary_key=True)
+    topic_id = Column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), nullable=False, index=True)
+    faculty_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    assigned_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class Resource(Base):
     __tablename__ = "resources"
 
