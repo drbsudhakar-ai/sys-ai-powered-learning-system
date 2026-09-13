@@ -103,6 +103,10 @@ export const updateCourse = (id, data) => API.put(`/courses/${id}`, data);
 export const deleteCourse = (id) => API.delete(`/courses/${id}`);
 export const getCoursePublicationReadiness = (id) =>
   API.get(`/admin/courses/${id}/publication-readiness`);
+export const getPilotPublicationReadiness = (id) =>
+  API.get(`/admin/courses/${id}/pilot-publication-readiness`);
+export const publishPilotCourse = (id, data) =>
+  API.post(`/admin/courses/${id}/pilot-publish`, data);
 export const submitCourseForReview = (id) =>
   API.post(`/admin/courses/${id}/submit-for-review`);
 export const publishCourse = (id, data = {}) =>
@@ -236,6 +240,10 @@ export const actOnWeightageGovernance = (courseId, subjectId, payload) =>
   API.post(`/admin/courses/${courseId}/weightages/${subjectId}/governance`, payload);
 export const setPilotGovernance = (courseId, payload) =>
   API.post(`/admin/courses/${courseId}/pilot-governance`, payload);
+export const previewPilotPrepareRemaining = (courseId) =>
+  API.get(`/admin/courses/${courseId}/pilot-prepare-remaining`);
+export const pilotPrepareRemaining = (courseId, payload) =>
+  API.post(`/admin/courses/${courseId}/pilot-prepare-remaining`, payload);
 export const updatePilotAcademicWeightages = (courseId, payload) =>
   API.put(`/admin/courses/${courseId}/pilot-weightages`, payload);
 export const actOnPilotWeightageGovernance = (courseId, taskId, payload) =>
@@ -401,6 +409,8 @@ export const createLearningSession = (data) =>
   API.post("/learning-sessions", data);
 export const openLecture = (sessionId) =>
   API.post(`/learning-sessions/${sessionId}/lecture/open`);
+export const regenerateLecture = (sessionId) =>
+  API.post(`/learning-sessions/${sessionId}/lecture/regenerate`);
 export const getLecture = (sessionId) =>
   API.get(`/learning-sessions/${sessionId}/lecture`);
 export const getLectureQuestions = (sessionId) =>

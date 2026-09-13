@@ -23,7 +23,7 @@ export function isExaminationCourse(category) {
 
 export function courseStatusLabel(course) {
   const status = course?.publication_status || (course?.is_active ? "PUBLISHED" : "DRAFT");
-  return { DRAFT: "Draft", READY_FOR_REVIEW: "Ready for review", PUBLISHED: "Published", ARCHIVED: "Archived" }[status] || "Draft";
+  return { DRAFT: "Draft", READY_FOR_REVIEW: "Ready for review", PUBLISHED: "Published", PILOT_PUBLISHED: "Controlled pilot", ARCHIVED: "Archived" }[status] || "Draft";
 }
 
 export function courseFormValues(course = {}) {

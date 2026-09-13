@@ -97,6 +97,11 @@ def approve_task(db, actor, course, review, task, comment):
     task.decision_comment = comment.strip(); task.approved_at = datetime.now(timezone.utc); task.approved_by = actor.id
 
 def publication_ready(db, course):
+    pilot_override = db.query(models.SyllabusSubjectReview.id).join(
+        models.SyllabusReview, models.SyllabusReview.id == models.SyllabusSubjectReview.review_id
+    ).filter(models.SyllabusReview.course_id == course.id,
+        models.SyllabusSubjectReview.status == 'PILOT_ADMIN_APPROVED').first()
+    if pilot_override: return False
     pending = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course.id,
         models.SyllabusReview.status.in_(['DRAFT', 'SUBMITTED', 'CHANGES_REQUESTED'])).all()
     if pending: return len(pending) == 1 and ready(db, pending[0])

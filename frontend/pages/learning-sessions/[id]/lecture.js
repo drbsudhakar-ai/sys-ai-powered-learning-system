@@ -18,6 +18,7 @@ import {
   lectureInteract,
   lectureStep,
   openLecture,
+  regenerateLecture,
 } from "../../../src/api";
 import { clearSession, getToken, redirectToLogin } from "../../../src/auth";
 import styles from "../../../components/lecture/AILecturerClassroom.module.css";
@@ -160,6 +161,11 @@ export default function LectureClassroomPage() {
           </p>
         </div>
         <div className="lecture-top-actions">
+          {lecture?.can_manage_classroom && <button type="button" className="btn-secondary" disabled={busy} onClick={() => {
+            if (window.confirm("Generate and save a new SYS deep-lecture revision? Earlier learner evidence will be preserved and this consumes AI usage.")) {
+              run(() => regenerateLecture(id));
+            }
+          }}>Regenerate deep lesson</button>}
           {lecture?.can_manage_classroom && lecture.mode !== "INDIVIDUAL" && ["IN_PROGRESS", "PAUSED"].includes(lecture.session_status) && <button type="button" className="btn-secondary" disabled={busy} onClick={() => { if (window.confirm("End this common session? This records the class end time; it does not mark students complete.")) run(async () => { await endCommonLearningSession(id); return getLecture(id); }); }}>End common session</button>}
           <button type="button" className="btn-secondary" onClick={toggleProjection}>{projecting ? "Exit projector mode" : "Projector mode"}</button>
           <button type="button" className="btn-secondary" onClick={() => setForce2d((v) => !v)}>
@@ -172,7 +178,11 @@ export default function LectureClassroomPage() {
       {lecture && lecture?.teaching_plan?.source !== "configured_ai" && <p className={styles.sourceNote}>Saved template lesson · Not evidence of a live AI-generated lecture. New sessions use your configured provider.</p>}
       {error ? <p className="lecture-error">{error}</p> : null}
       {lecture?.syllabus_review_required && <p role="status" className={styles.sourceNote}>The approved syllabus changed after this saved lesson was prepared. Faculty should verify its coverage. Your lesson history and completion records are preserved.</p>}
-      {!lecture && <div className={styles.sourceNote} role="status"><p>{busy ? "Preparing the topic lesson. Generation may take a moment; please do not refresh." : "No lesson loaded. A common classroom must first be prepared by its faculty member."}</p><button type="button" className="btn-primary" disabled={busy} onClick={load}>Retry opening classroom</button></div>}
+      {!lecture && <div className={styles.sourceNote} role="status"><p>{busy
+        ? "Preparing the topic lesson. Generation may take a moment; please do not refresh."
+        : error
+          ? "No lesson was saved. Resolve the generation error shown above before retrying."
+          : "No lesson loaded. A common classroom must first be prepared by its faculty member."}</p><button type="button" className="btn-primary" disabled={busy} onClick={load}>Retry opening classroom</button></div>}
       {lecture?.can_manage_classroom && lecture.mode !== "INDIVIDUAL" && <ClassroomRoster sessionId={id} />}
 
       <div className={styles.classroomGrid}>

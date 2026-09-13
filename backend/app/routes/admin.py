@@ -1127,6 +1127,108 @@ def _publication_readiness(db: Session, course_id: int, scope: dict) -> dict:
     return {"course_id": course_id, "publication_status": course.publication_status, "pending_enrollment_count": pending_count, "ready": complete == len(checks), "completed": complete, "total": len(checks), "percent": round(complete / len(checks) * 100), "checks": checks, "pending_actions": [item for item in checks if not item["complete"]]}
 
 
+def _pilot_publication_readiness(db: Session, course_id: int, scope: dict) -> dict:
+    course = scope["course"]
+    tree = _pilot_weight_tree(db, course_id, scope)
+    review, pending = _pilot_pending_subjects(db, course_id)
+    tasks = db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id).all() if review else []
+    subjects = [node for node in (review.proposed_nodes or []) if node.get("level") == "subject"] if review else []
+    by_key = {task.subject_key: task for task in tasks}
+    statuses_ok = bool(subjects) and all(by_key.get(node["key"]) and by_key[node["key"]].status in {
+        "APPROVED", "PILOT_ADMIN_APPROVED"} for node in subjects)
+    weights_ok = bool(tree and tree.get("subjects")) and all(subject["governance"]["complete"] and
+        subject["governance"]["status"] in {"PILOT_APPROVED", "PILOT_ADMIN_APPROVED"}
+        for subject in tree["subjects"])
+    coordinators = db.query(models.FacultyCourseAssignment).filter_by(course_id=course_id).all()
+    eligible_enrollments = db.query(models.StudentCourseEnrollment).join(models.User,
+        models.User.id == models.StudentCourseEnrollment.student_id).filter(
+        models.StudentCourseEnrollment.course_id == course_id,
+        models.StudentCourseEnrollment.status.in_(["ACTIVE", "PENDING_ACTIVATION"]),
+        models.User.is_active.is_(True), models.User.account_status == "ACTIVE",
+        (models.User.email_verified.is_(True)) | (models.User.mobile_verified.is_(True))).count()
+    checks = [
+        {"key":"pilot_mode","label":"Controlled pilot governance","complete":course.governance_mode == "PILOT","detail":"The course must remain explicitly in controlled pilot mode."},
+        {"key":"pilot_syllabus","label":"All draft subjects pilot-ready","complete":statuses_ok and not pending,"detail":"Genuine approvals or explicit Admin pilot approvals are required for every subject."},
+        {"key":"pilot_weights","label":"All pilot weightages complete","complete":weights_ok,"detail":"Every course, unit, topic and subtopic group must total exactly 100%."},
+        {"key":"identity","label":"Course identity and examination information","complete":bool(course.title and course.programme_code and course.examination_name and course.examination_authority),"detail":"Course identity and examination information must be configured."},
+        {"key":"coordinator","label":"Active Course Coordinator","complete":any(item.faculty and item.faculty.is_active for item in coordinators),"detail":"An active assigned Course Coordinator is required."},
+        {"key":"pilot_student","label":"Verified pilot student enrollment","complete":eligible_enrollments > 0,"detail":"Add at least one active or pending verified pilot student before publication."},
+    ]
+    completed = sum(item["complete"] for item in checks)
+    pending_count = db.query(models.StudentCourseEnrollment).filter_by(course_id=course_id,status="PENDING_ACTIVATION").count()
+    return {"course_id":course_id,"publication_status":course.publication_status,"pilot":True,
+        "ready":completed == len(checks),"completed":completed,"total":len(checks),
+        "percent":round(completed/len(checks)*100),"pending_enrollment_count":pending_count,
+        "checks":checks,"pending_actions":[item for item in checks if not item["complete"]]}
+
+
+@router.get("/courses/{course_id}/pilot-publication-readiness")
+def get_pilot_publication_readiness(course_id: int, db: Session = Depends(database.get_db),
+        actor: models.User = Depends(_admin)):
+    return _pilot_publication_readiness(db, course_id, _weightage_scope(db, course_id, actor))
+
+
+def _materialize_pilot_weights(db, course, review):
+    nodes = review.proposed_nodes or []; objects = {}
+    for node in [item for item in nodes if item["level"] == "subject"]:
+        objects[node["key"]] = db.query(models.Subject).filter_by(course_id=course.id, name=node["name"]).one()
+    for node in [item for item in nodes if item["level"] == "unit"]:
+        objects[node["key"]] = db.query(models.Unit).filter_by(subject_id=objects[node["parent"]].id, name=node["name"]).one()
+    for node in [item for item in nodes if item["level"] == "topic"]:
+        objects[node["key"]] = db.query(models.Topic).filter_by(unit_id=objects[node["parent"]].id, name=node["name"]).one()
+    for node in [item for item in nodes if item["level"] == "subtopic"]:
+        objects[node["key"]] = db.query(models.Subtopic).filter_by(topic_id=objects[node["parent"]].id, name=node["name"]).one()
+    for key, value in (review.draft_subject_weightages or {}).items():
+        db.add(models.SubjectWeightage(course_id=course.id, subject_id=objects[key].id, weight_percent=value))
+    for task in db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id):
+        task.live_subject_id = objects[task.subject_key].id
+        for group, values in (task.draft_weightages or {}).items():
+            level = group.split(":", 1)[0]
+            for key, value in values.items():
+                obj = objects[key]
+                if level == "unit": db.add(models.UnitWeightage(subject_id=obj.subject_id, unit_id=obj.id, weight_percent=value))
+                elif level == "topic": db.add(models.TopicWeightage(subject_id=obj.subject_id, topic_id=obj.id, weight_percent=value))
+                else: db.add(models.SubtopicWeightage(topic_id=obj.topic_id, subtopic_id=obj.id, weight_percent=value))
+
+
+@router.post("/courses/{course_id}/pilot-publish")
+def pilot_publish_course(course_id: int, payload: schemas.PilotPublishRequest,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_admin)):
+    from app.services import syllabus_review as core
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    if not course: raise HTTPException(404, "Course not found")
+    if payload.course_code != course.programme_code: raise HTTPException(422, "Enter the exact course code")
+    scope = _weightage_scope(db, course_id, actor)
+    readiness = _pilot_publication_readiness(db, course_id, scope)
+    if not readiness["ready"]: raise HTTPException(409, "Complete every controlled pilot publication requirement first")
+    if payload.activate_pending and payload.expected_pending_count != readiness["pending_enrollment_count"]:
+        raise HTTPException(409, "Pending pilot enrollments changed; refresh and confirm again")
+    review = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course_id,
+        models.SyllabusReview.subject_id.is_(None), models.SyllabusReview.status.in_(["DRAFT","CHANGES_REQUESTED"])
+        ).order_by(models.SyllabusReview.id.desc()).first()
+    review.status = "SUBMITTED"; review.summary = review.summary or "Controlled pilot syllabus materialization"
+    db.flush(); core.approve(db, actor, course, review,
+        "Controlled pilot materialization; not institutional approval", subject_workflow=True)
+    db.flush(); _materialize_pilot_weights(db, course, review)
+    activated = 0
+    if payload.activate_pending:
+        rows = db.query(models.StudentCourseEnrollment).filter_by(course_id=course_id,status="PENDING_ACTIVATION").all()
+        for row in rows:
+            if row.student and row.student.is_active and row.student.account_status == "ACTIVE" and (
+                    row.student.email_verified or row.student.mobile_verified):
+                row.status = "ACTIVE"; activated += 1
+    course.publication_status = "PILOT_PUBLISHED"; course.is_active = True
+    course.published_at = datetime.now(timezone.utc); course.published_by = actor.id
+    db.add(models.AdminAuditLog(actor_user_id=actor.id, action="course.pilot_publish",
+        target_type="course", target_id=course_id, summary=f"Published controlled pilot: {course.title}",
+        details={"reason":payload.reason.strip(),"activated_pilot_students":activated,
+            "warning":"Controlled Pilot - Not Institutionally Approved"}))
+    db.commit()
+    result = {**readiness, "publication_status":"PILOT_PUBLISHED", "ready":True}
+    result["enrollment_activation"] = {"activated":activated}
+    return result
+
+
 @router.get("/courses/{course_id}/publication-readiness")
 def get_course_publication_readiness(course_id: int, db: Session = Depends(database.get_db), actor: models.User = Depends(_academic_staff)):
     scope = _weightage_scope(db, course_id, actor)
@@ -1267,6 +1369,92 @@ def _draft_subject_key(nodes, node):
     lookup = {item["key"]: item for item in nodes}
     while node.get("level") != "subject": node = lookup[node["parent"]]
     return node["key"]
+
+
+def _equal_draft_weights(items):
+    cents, remainder = divmod(10000, len(items))
+    return {item["key"]: (cents + (1 if index < remainder else 0)) / 100
+        for index, item in enumerate(items)}
+
+
+def _pilot_pending_subjects(db, course_id):
+    review = db.query(models.SyllabusReview).filter(models.SyllabusReview.course_id == course_id,
+        models.SyllabusReview.subject_id.is_(None), models.SyllabusReview.status.in_(["DRAFT", "CHANGES_REQUESTED"])
+        ).order_by(models.SyllabusReview.id.desc()).first()
+    if not review: return None, []
+    tasks = {task.subject_key: task for task in db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id)}
+    pending = []
+    for node in review.proposed_nodes or []:
+        if node.get("level") != "subject": continue
+        task = tasks.get(node["key"])
+        if not task or task.status not in {"APPROVED", "PILOT_ADMIN_APPROVED"}:
+            pending.append({"subject_key": node["key"], "name": node["name"],
+                "current_status": task.status if task else "NOT_REQUESTED"})
+    return review, pending
+
+
+@router.get("/courses/{course_id}/pilot-prepare-remaining")
+def preview_pilot_prepare_remaining(course_id: int, db: Session = Depends(database.get_db),
+        actor: models.User = Depends(_admin)):
+    course = db.get(models.Course, course_id)
+    if not course: raise HTTPException(404, "Course not found")
+    if course.governance_mode != "PILOT": raise HTTPException(409, "Controlled pilot governance is required")
+    review, pending = _pilot_pending_subjects(db, course_id)
+    if not review: raise HTTPException(409, "A saved whole-course syllabus draft is required")
+    return {"course_id": course_id, "course_code": course.programme_code,
+        "review_id": review.id, "pending_count": len(pending), "subjects": pending}
+
+
+@router.post("/courses/{course_id}/pilot-prepare-remaining")
+def pilot_prepare_remaining(course_id: int, payload: schemas.PilotPrepareSubjectsRequest,
+        db: Session = Depends(database.get_db), actor: models.User = Depends(_admin)):
+    from app.services import syllabus_review as core
+    course = db.query(models.Course).filter_by(id=course_id).with_for_update().first()
+    if not course: raise HTTPException(404, "Course not found")
+    if course.governance_mode != "PILOT": raise HTTPException(409, "Controlled pilot governance is required")
+    if payload.course_code != course.programme_code: raise HTTPException(422, "Enter the exact course code")
+    review, pending = _pilot_pending_subjects(db, course_id)
+    expected = {item["subject_key"] for item in pending}
+    if set(payload.expected_subject_keys) != expected:
+        raise HTTPException(409, "Pending subjects changed; refresh the confirmation summary")
+    if not pending: raise HTTPException(409, "No remaining subjects require pilot preparation")
+    nodes = review.proposed_nodes or []
+    children = {}
+    for node in nodes: children.setdefault(node.get("parent"), []).append(node)
+    now = datetime.now(timezone.utc); prepared = []
+    for item in pending:
+        key = item["subject_key"]
+        task = db.query(models.SyllabusSubjectReview).filter_by(review_id=review.id, subject_key=key).first()
+        branch_nodes = [node for node in nodes if _draft_subject_key(nodes, node) == key]
+        if not task:
+            task = models.SyllabusSubjectReview(review_id=review.id, subject_key=key)
+            db.add(task); db.flush()
+        values = {}
+        subject_node = next(node for node in nodes if node["key"] == key)
+        units = children.get(key, [])
+        if units: values[f"unit:{key}"] = _equal_draft_weights(units)
+        for unit in units:
+            topics = children.get(unit["key"], [])
+            if topics: values[f"topic:{unit['key']}"] = _equal_draft_weights(topics)
+            for topic in topics:
+                subtopics = children.get(topic["key"], [])
+                if subtopics: values[f"subtopic:{topic['key']}"] = _equal_draft_weights(subtopics)
+        task.source_nodes = branch_nodes; task.proposed_nodes = branch_nodes
+        task.source_hash = core.fingerprint(branch_nodes)
+        task.status = "PILOT_ADMIN_APPROVED"; task.version += 1
+        task.comment = f"Controlled pilot override: {payload.reason.strip()}"
+        task.decision_comment = "Administrator pilot preparation; Subject Expert review remains pending"
+        task.approved_by = actor.id; task.approved_at = now
+        task.draft_weightages = values; task.weightage_status = "PILOT_ADMIN_APPROVED"
+        task.weightage_version += 1; task.weightage_approved_by = actor.id; task.weightage_approved_at = now
+        prepared.append({"subject_key": key, "name": subject_node["name"]})
+    db.add(models.AdminAuditLog(actor_user_id=actor.id, action="course.pilot_prepare_remaining",
+        target_type="syllabus_review", target_id=review.id,
+        summary=f"Pilot-prepared {len(prepared)} remaining subjects for {course.title}",
+        details={"reason": payload.reason.strip(), "subjects": prepared,
+            "syllabus_status": "PILOT_ADMIN_APPROVED", "weightage_status": "PILOT_ADMIN_APPROVED"}))
+    db.commit()
+    return {"prepared_count": len(prepared), "subjects": prepared, "pilot_only": True}
 
 
 @router.put("/courses/{course_id}/pilot-weightages")

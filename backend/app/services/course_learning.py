@@ -41,7 +41,7 @@ def _published_enrollment(
         .first()
     )
     from app.services.course_enrollments import has_learning_access
-    if not enrolled or not course.is_active or course.publication_status != "PUBLISHED" or not has_learning_access(db, student.id, course_id):
+    if not enrolled or not course.is_active or course.publication_status not in {"PUBLISHED", "PILOT_PUBLISHED"} or not has_learning_access(db, student.id, course_id):
         raise HTTPException(
             status_code=403,
             detail="Enrollment in this published course is required",

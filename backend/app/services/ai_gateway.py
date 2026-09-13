@@ -14,6 +14,13 @@ from app import database, models
 DEFAULT_BASES = "https://api.groq.com/openai/v1,https://api.openai.com/v1,https://openrouter.ai/api/v1"
 
 
+def estimated_reservation(body, max_output_tokens):
+    """Approximate UTF-8 prompt tokens without treating every byte as a token."""
+    request_bytes = len(json.dumps(body, ensure_ascii=False).encode())
+    estimated_input_tokens = (request_bytes + 3) // 4
+    return estimated_input_tokens + max_output_tokens + 256
+
+
 def cipher():
     try:
         return Fernet(os.environ["SYS_AI_ENCRYPTION_KEY"].encode())
@@ -97,7 +104,7 @@ def save_config(db, payload, actor):
     return public_config(row)
 
 
-def _request(config, secret, system, user, context):
+def _request(config, secret, system, user, context, response_schema=None, schema_name="sys_response"):
     # Audit-only IDs are never sent to an external provider.
     academic = {k: v for k, v in (context or {}).items() if k not in {"actor_id", "session_id"}}
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user + "\nAcademic context: " + json.dumps(academic, ensure_ascii=False)}]
@@ -107,11 +114,16 @@ def _request(config, secret, system, user, context):
     if config["protocol"] == "ollama":
         return config["base_url"] + "/api/chat", headers, {"model": config["model"], "messages": messages, "stream": False,
             "format": "json", "options": {"num_predict": config["max_output_tokens"], "temperature": 0.2}}
+    response_format = {"type": "json_object"}
+    if response_schema:
+        response_format = {"type": "json_schema", "json_schema": {
+            "name": schema_name, "strict": True, "schema": response_schema}}
     return config["base_url"] + "/chat/completions", headers, {"model": config["model"], "messages": messages,
-        "max_tokens": config["max_output_tokens"], "temperature": 0.2, "response_format": {"type": "json_object"}}
+        "max_tokens": config["max_output_tokens"], "temperature": 0.2, "response_format": response_format}
 
 
-def complete_json(*, system, user, context=None, connection_test=False):
+def complete_json(*, system, user, context=None, connection_test=False,
+        response_schema=None, schema_name="sys_response", response_validator=None):
     context = context or {}
     now = datetime.now(timezone.utc)
     day = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -133,9 +145,10 @@ def complete_json(*, system, user, context=None, connection_test=False):
             raise HTTPException(503, "No API key configured")
         if connection_test:
             config["max_output_tokens"] = min(config["max_output_tokens"], 128)
-        url, headers, body = _request(config, secret, system, user, context)
+        url, headers, body = _request(config, secret, system, user, context,
+            response_schema=response_schema, schema_name=schema_name)
         # Conservative local admission estimate. Provider accounting remains authoritative.
-        reserved = len(json.dumps(body, ensure_ascii=False).encode()) + config["max_output_tokens"] + 256
+        reserved = estimated_reservation(body, config["max_output_tokens"])
         actor = db.get(models.User, context.get("actor_id")) if context.get("actor_id") else None
         events = db.query(models.AIUsageEvent).filter(models.AIUsageEvent.created_at >= day)
         used_requests, used_tokens = events.with_entities(func.count(models.AIUsageEvent.id), func.coalesce(func.sum(models.AIUsageEvent.budget_tokens), 0)).one()
@@ -151,7 +164,7 @@ def complete_json(*, system, user, context=None, connection_test=False):
             purpose="CONNECTION_TEST" if connection_test else str(context.get("intent", "OTHER"))[:64],
             status="RESERVED", budget_tokens=reserved, created_at=now)
         db.add(event); db.commit(); event_id = event.id
-    error = None; total = None; result = None
+    error = None; total = None; result = None; contract_error = None
     try:
         # No redirects or environment proxy inheritance: credentials stay at the approved endpoint.
         with httpx.Client(timeout=httpx.Timeout(45, connect=10), follow_redirects=False, trust_env=False) as client:
@@ -174,6 +187,12 @@ def complete_json(*, system, user, context=None, connection_test=False):
             result = json.loads(content)
             if not isinstance(result, dict):
                 error = "INVALID_JSON_OBJECT"
+            elif response_validator:
+                try:
+                    response_validator(result)
+                except HTTPException as validation_error:
+                    error = "CONTRACT_VALIDATION_FAILED"
+                    contract_error = validation_error
     except httpx.TimeoutException:
         error = "TIMEOUT"
     except (httpx.HTTPError, ValueError, KeyError, TypeError, IndexError, AttributeError):
@@ -186,6 +205,8 @@ def complete_json(*, system, user, context=None, connection_test=False):
         event.budget_tokens = total if total is not None else reserved
         event.finished_at = datetime.now(timezone.utc)
         db.commit()
+    if contract_error:
+        raise contract_error
     if error:
         raise HTTPException(502, f"AI provider request failed ({error}). Saved lessons remain available. Usage reference: {event_id}")
     return result

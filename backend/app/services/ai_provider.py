@@ -22,6 +22,9 @@ class AIProvider(ABC):
         system: str,
         user: str,
         context: Optional[Dict[str, Any]] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        schema_name: str = "sys_response",
+        response_validator=None,
     ) -> Dict[str, Any]:
         """Return a structured JSON object (never raw frontend code)."""
 
@@ -39,6 +42,9 @@ class MockAIProvider(AIProvider):
         system: str,
         user: str,
         context: Optional[Dict[str, Any]] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        schema_name: str = "sys_response",
+        response_validator=None,
     ) -> Dict[str, Any]:
         ctx = context or {}
         return {
@@ -62,6 +68,9 @@ class EchoAIProvider(AIProvider):
         system: str,
         user: str,
         context: Optional[Dict[str, Any]] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        schema_name: str = "sys_response",
+        response_validator=None,
     ) -> Dict[str, Any]:
         return {"provider": "echo", "user": user, "context": context or {}}
 
@@ -70,9 +79,12 @@ class ConfiguredAIProvider(AIProvider):
     """Read the current administrator configuration on every request."""
     live = True
 
-    def complete_json(self, *, system, user, context=None):
+    def complete_json(self, *, system, user, context=None, response_schema=None,
+            schema_name="sys_response", response_validator=None):
         from app.services.ai_gateway import complete_json
-        return complete_json(system=system, user=user, context=context)
+        return complete_json(system=system, user=user, context=context,
+            response_schema=response_schema, schema_name=schema_name,
+            response_validator=response_validator)
 
 
 _provider: Optional[AIProvider] = None

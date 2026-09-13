@@ -401,6 +401,7 @@ class CourseOut(CourseBase):
     programme_category: str
     is_active: bool = False
     publication_status: str = "DRAFT"
+    governance_mode: str = "INSTITUTIONAL"
     submitted_for_review_at: Optional[datetime] = None
     submitted_for_review_by: Optional[int] = None
     published_at: Optional[datetime] = None
@@ -444,6 +445,15 @@ class EnrollmentStatusRequest(BaseModel):
 
 
 class CoursePublishRequest(BaseModel):
+    activate_pending: bool = False
+    expected_pending_count: Optional[int] = Field(None, ge=0)
+
+    model_config = {"extra": "forbid"}
+
+
+class PilotPublishRequest(BaseModel):
+    course_code: str = Field(..., min_length=1, max_length=80)
+    reason: str = Field(..., min_length=10, max_length=1000)
     activate_pending: bool = False
     expected_pending_count: Optional[int] = Field(None, ge=0)
 
@@ -836,6 +846,12 @@ class PilotGovernanceRequest(BaseModel):
     action: Literal["enable", "disable"]
     course_code: str = Field(..., min_length=1, max_length=80)
     reason: str = Field(..., min_length=10, max_length=1000)
+
+
+class PilotPrepareSubjectsRequest(BaseModel):
+    course_code: str = Field(..., min_length=1, max_length=80)
+    reason: str = Field(..., min_length=10, max_length=1000)
+    expected_subject_keys: List[str] = Field(..., min_length=1, max_length=100)
 
 
 class DraftAcademicWeightageItem(BaseModel):

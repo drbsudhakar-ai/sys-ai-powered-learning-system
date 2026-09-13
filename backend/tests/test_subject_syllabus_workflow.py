@@ -187,6 +187,39 @@ class SubjectWorkflowTests(unittest.TestCase):
         tree=self.client.get(f'/admin/courses/{self.course.id}/weightages').json()
         pending=next(item for item in tree['subjects'] if item['id']=='new:b')
         self.assertEqual(pending['syllabus_status'],'NOT_REQUESTED')
+        preview=self.client.get(f'/admin/courses/{self.course.id}/pilot-prepare-remaining')
+        self.assertEqual(preview.status_code,200,preview.text)
+        self.assertEqual([item['subject_key'] for item in preview.json()['subjects']],['new:b'])
+        prepared=self.client.post(f'/admin/courses/{self.course.id}/pilot-prepare-remaining',json={
+            'course_code':'TGPCPWT-2026','reason':'Prepare remaining branch for AI lecturer pilot validation',
+            'expected_subject_keys':['new:b']})
+        self.assertEqual(prepared.status_code,200,prepared.text)
+        pending=self.db.query(models.SyllabusSubjectReview).filter_by(
+            review_id=self.review['id'],subject_key='new:b').one()
+        self.assertEqual(pending.status,'PILOT_ADMIN_APPROVED')
+        self.assertEqual(pending.weightage_status,'PILOT_ADMIN_APPROVED')
+        self.assertEqual(pending.draft_weightages['unit:new:b']['new:bu'],100)
+        genuine=self.db.query(models.SyllabusSubjectReview).filter_by(
+            review_id=self.review['id'],subject_key='new:a').one()
+        self.assertEqual(genuine.status,'APPROVED')
+        self.assertEqual(genuine.weightage_status,'PILOT_APPROVED')
+        student=models.User(name='Pilot Student',email='pilot@example.org',role='student',
+            roll_number='PILOT-STUDENT-001',is_active=True,account_status='ACTIVE',email_verified=True)
+        self.course.examination_name='Police Constable Preliminary Written Test'
+        self.course.examination_authority='Telangana State Level Police Recruitment Board'
+        self.db.add(student);self.db.flush();self.db.add(models.StudentCourseEnrollment(
+            course_id=self.course.id,student_id=student.id,status='PENDING_ACTIVATION'))
+        self.db.commit()
+        readiness=self.client.get(f'/admin/courses/{self.course.id}/pilot-publication-readiness')
+        self.assertEqual(readiness.status_code,200,readiness.text);self.assertTrue(readiness.json()['ready'])
+        published=self.client.post(f'/admin/courses/{self.course.id}/pilot-publish',json={
+            'course_code':'TGPCPWT-2026','reason':'Validate AI lecturer with a restricted sample student',
+            'activate_pending':True,'expected_pending_count':1})
+        self.assertEqual(published.status_code,200,published.text)
+        self.db.refresh(self.course);self.assertEqual(self.course.publication_status,'PILOT_PUBLISHED')
+        self.assertEqual(self.db.query(models.Subject).count(),2)
+        self.assertEqual(self.db.query(models.SubjectWeightage).count(),2)
+        self.assertEqual(self.db.query(models.StudentCourseEnrollment).filter_by(status='ACTIVE').count(),1)
 
     def test_legacy_approval_bypass_is_blocked(self):
         self.call('post',f'/reviews/{self.review["id"]}/action',dict(version=self.review['version'],action='approve',comment='bypass'),code=409)

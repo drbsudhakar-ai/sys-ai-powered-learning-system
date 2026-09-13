@@ -438,7 +438,7 @@ def role_dashboard(
             and str(getattr(enrollment.course, "publication_status", "PUBLISHED"))
             .upper()
             .split(".")[-1]
-            == "PUBLISHED"
+            in {"PUBLISHED", "PILOT_PUBLISHED"}
         ]
         return {
             "role": role,

@@ -100,6 +100,7 @@ def _course_out(course: models.Course, db: Session, actor=None) -> schemas.Cours
         programme_code=course.programme_code,
         is_active=bool(course.is_active),
         publication_status=course.publication_status or ("PUBLISHED" if course.is_active else "DRAFT"),
+        governance_mode=course.governance_mode or "INSTITUTIONAL",
         self_enrollment_enabled=bool(course.self_enrollment_enabled),
         submitted_for_review_at=course.submitted_for_review_at,
         submitted_for_review_by=course.submitted_for_review_by,
@@ -245,7 +246,11 @@ def get_course(
     current_user: models.User = Depends(get_current_user),
 ):
     course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course or ((current_user.role or "").lower() == "student" and (course.publication_status != "PUBLISHED" or not course.is_active)):
+    pilot_enrolled = db.query(models.StudentCourseEnrollment.id).filter_by(
+        student_id=current_user.id, course_id=course_id, status="ACTIVE").first() if course else None
+    student_visible = course and course.is_active and (course.publication_status == "PUBLISHED" or
+        course.publication_status == "PILOT_PUBLISHED" and pilot_enrolled)
+    if not course or ((current_user.role or "").lower() == "student" and not student_visible):
         raise HTTPException(status_code=404, detail="Course not found")
     return _course_out(course, db, current_user)
 
@@ -332,7 +337,7 @@ def course_workspace(
             .first()
         )
         from app.services.course_enrollments import has_learning_access
-        if not enrolled or not course.is_active or course.publication_status != "PUBLISHED" or not has_learning_access(db, current_user.id, course_id):
+        if not enrolled or not course.is_active or course.publication_status not in {"PUBLISHED", "PILOT_PUBLISHED"} or not has_learning_access(db, current_user.id, course_id):
             raise HTTPException(status_code=403, detail="Enrollment in this published course is required")
     elif role == "faculty":
         coordinator_assignment = (

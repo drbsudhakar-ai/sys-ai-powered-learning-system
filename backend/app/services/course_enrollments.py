@@ -29,7 +29,8 @@ def has_learning_access(db, student_id, course_id):
         models.StudentCourseEnrollment.student_id == student_id,
         models.StudentCourseEnrollment.course_id == course_id,
         models.StudentCourseEnrollment.status == "ACTIVE",
-        models.Course.publication_status == "PUBLISHED", models.Course.is_active.is_(True),
+        models.Course.publication_status.in_(("PUBLISHED", "PILOT_PUBLISHED")),
+        models.Course.is_active.is_(True),
         models.User.is_active.is_(True), func.lower(models.User.role) == "student",
         or_(models.User.academic_status.is_(None), func.upper(models.User.academic_status) == "ACTIVE"),
     ).first() is not None

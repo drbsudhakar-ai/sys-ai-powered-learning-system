@@ -367,6 +367,11 @@ export default function CourseLearningWorkspace() {
               <span>{course.unit_count} units</span>
               <span>{course.student_count} enrolled students</span>
             </div>
+            {course.publication_status === "PILOT_PUBLISHED" && (
+              <p className={styles.draftNotice} role="status">
+                Controlled Pilot — Not Institutionally Approved. Access is restricted to explicitly enrolled pilot participants.
+              </p>
+            )}
             {data.syllabus_status?.is_draft && (
               <p className={styles.draftNotice}>
                 Coordinator preview · Configured syllabus under review · Not

@@ -1,5 +1,25 @@
 import { useEffect, useState } from "react";
 
+export function narrationChunks(text, limit = 220) {
+  const sentences = String(text || "").match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+  const chunks = [];
+  sentences.forEach((sentence) => {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    let current = "";
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (current && candidate.length > limit) {
+        chunks.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    });
+    if (current) chunks.push(current);
+  });
+  return chunks;
+}
+
 export default function LectureVoice({ step, playing, rate = 1 }) {
   const [available, setAvailable] = useState(false);
   const [voices, setVoices] = useState([]);
@@ -21,8 +41,8 @@ export default function LectureVoice({ step, playing, rate = 1 }) {
     if (!enabled || !playing || !text) { setStatus(enabled ? "Paused" : "Voice is off"); return; }
     let active = true;
     const voice = synth.getVoices().find((v) => v.voiceURI === voiceId);
-    // Short chunks avoid browser speech engines cutting off long utterances.
-    const chunks = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+    // Bounded chunks prevent browser speech engines from silently truncating long sentences.
+    const chunks = narrationChunks(text);
     let index = 0;
     function speakNext() {
       if (!active || index >= chunks.length) { if (active) setStatus("Narration finished"); return; }
@@ -31,7 +51,7 @@ export default function LectureVoice({ step, playing, rate = 1 }) {
       else utterance.lang = "en-IN";
       utterance.rate = rate;
       utterance.onstart = () => { if (active) setStatus("Speaking"); };
-      utterance.onend = speakNext;
+      utterance.onend = () => { if (active) speakNext(); };
       utterance.onerror = () => { if (active) setStatus("Voice unavailable — use the transcript or another voice"); };
       synth.speak(utterance);
     }

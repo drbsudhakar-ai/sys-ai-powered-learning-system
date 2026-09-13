@@ -84,6 +84,8 @@ test("course weightage route uses SYS administration shell without duplicate glo
   assert.match(workspace, /do not constitute institutional approval/);
   assert.match(workspace, /rows="4"/);
   assert.match(workspace, /Record the academic verification/);
+  assert.match(workspace, /Prepare remaining subjects for pilot/);
+  assert.match(workspace, /does not constitute Subject Expert or institutional approval/);
 });
 
 test("weightage recommendation comment has a visible accessible textarea", async () => {
@@ -100,4 +102,15 @@ test("course profile and syllabus both link to the academic weightage workspace"
   const syllabus = await readFile(new URL("../components/admin/CourseSyllabusWorkspace.js", import.meta.url), "utf8");
   assert.match(profile, /\/weightages`}>Manage academic weightages/);
   assert.match(syllabus, /\/weightages`} className/);
+});
+
+test("controlled pilot publication remains separate from institutional publication", async () => {
+  const profile = await readFile(new URL("../components/admin/CourseProfilePage.js", import.meta.url), "utf8");
+  const pilot = await readFile(new URL("../components/admin/PilotPublicationCard.js", import.meta.url), "utf8");
+  const studentWorkspace = await readFile(new URL("../pages/courses/[id]/workspace.js", import.meta.url), "utf8");
+  assert.match(profile, /PilotPublicationCard/);
+  assert.match(pilot, /Controlled pilot publication readiness/);
+  assert.match(pilot, /Not Institutionally Approved/);
+  assert.match(pilot, /Publish controlled pilot/);
+  assert.match(studentWorkspace, /Controlled Pilot — Not Institutionally Approved/);
 });

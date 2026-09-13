@@ -25,6 +25,15 @@ client = TestClient(app)
 _users = ProtectedUserFactory(client, "P0134")
 
 
+def deep_lesson_steps(prefix="Stage", model_3d=None):
+    return [{"title": f"{prefix} {i + 1}",
+        "explanation": ("Detailed board explanation connects the concept to the approved syllabus. " * 3).strip(),
+        "narration": ("The lecturer develops this idea progressively, explains why it matters, and connects it to a clear example for the learner. " * 8).strip(),
+        "bullets": ["Core concept", "Applied example"], "formula": "F = ma" if model_3d else None,
+        "flow": ["Force", "Acceleration"] if model_3d else [], "model_3d": model_3d}
+        for i in range(8)]
+
+
 def _email(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}@example.com"
 
@@ -74,8 +83,7 @@ class TeachingPlanUnitTests(unittest.TestCase):
     def test_live_visuals_and_recap_are_data_only(self):
         from app.services.ai_lesson_contract import lesson_plan
         from fastapi import HTTPException
-        steps = [{"title": "Force", "explanation": "A force changes motion.", "narration": "Observe the relationship.",
-                  "bullets": ["Force is measured in newtons"], "formula": "F = ma", "flow": ["Force", "Acceleration"], "model_3d": "force_vectors"} for _ in range(3)]
+        steps = deep_lesson_steps("Force", "force_vectors")
         plan = lesson_plan({"steps": steps}, "Newton")
         self.assertEqual(plan["steps"][0]["kind"], "INTRODUCTION")
         self.assertEqual(plan["steps"][-1]["kind"], "SUMMARY")
@@ -177,10 +185,25 @@ class AILecturerAPITests(unittest.TestCase):
         self.assertEqual(client.post("/learning-sessions/1/lecture/open").status_code, 401)
         self.assertEqual(client.get("/learning-sessions/1/lecture").status_code, 401)
 
+    def test_manager_can_regenerate_revision_and_student_cannot(self):
+        sid = self._create_common()
+        first = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
+        self.assertEqual(first.status_code, 200, first.text)
+        denied = client.post(f"/learning-sessions/{sid}/lecture/regenerate", headers=_auth(self.student_token))
+        self.assertEqual(denied.status_code, 403, denied.text)
+        regenerated = client.post(f"/learning-sessions/{sid}/lecture/regenerate", headers=_auth(self.faculty_token))
+        self.assertEqual(regenerated.status_code, 200, regenerated.text)
+        with database.SessionLocal() as db:
+            revisions = db.query(models.LearningSessionActivity).filter_by(
+                session_id=sid, activity_type="LECTURE").order_by(models.LearningSessionActivity.sequence).all()
+            self.assertEqual(len(revisions), 2)
+            self.assertTrue((revisions[-1].payload or {}).get("lecture_meta", {}).get("regenerated"))
+
     def test_live_shared_lesson_reuse_and_private_explanation(self):
         sid = self._create_common()
-        raw = {"steps": [{"title": f"Part {i}", "explanation": "Provider concept", "narration": "Provider narration"} for i in range(3)]}
-        with patch.dict(os.environ, {"SYS_AI_PROVIDER": "configured"}), patch.object(ConfiguredAIProvider, "complete_json", side_effect=[raw, {"answer": "Private clarification for this learner"}]) as provider:
+        raw = {"steps": deep_lesson_steps("Provider")}
+        clarification = ("Private clarification for this learner develops the idea carefully with an example and corrects a likely misconception. " * 8).strip()
+        with patch.dict(os.environ, {"SYS_AI_PROVIDER": "configured"}), patch.object(ConfiguredAIProvider, "complete_json", side_effect=[raw, {"answer": clarification}]) as provider:
             opened = client.post(f"/learning-sessions/{sid}/lecture/open", headers=_auth(self.faculty_token))
             self.assertEqual(opened.status_code, 200, opened.text)
             self.assertEqual(opened.json()["teaching_plan"]["source"], "configured_ai")
@@ -190,7 +213,7 @@ class AILecturerAPITests(unittest.TestCase):
             answer = client.post(f"/learning-sessions/{sid}/lecture/interact", headers=_auth(self.student_token), json={"intent": "ASK", "message": "Explain again"})
             self.assertEqual(answer.status_code, 200, answer.text)
             self.assertIn("Private clarification", answer.json()["current_step"]["narration"]["text"])
-            self.assertEqual(answer.json()["step_count"], 3)
+            self.assertEqual(answer.json()["step_count"], 8)
             peer = client.get(f"/learning-sessions/{sid}/lecture", headers=_auth(self.student2_token))
             self.assertNotIn("Private clarification", peer.text)
             playback = client.post(f"/learning-sessions/{sid}/lecture/interact", headers=_auth(self.student_token), json={"intent": "CONTINUE"})

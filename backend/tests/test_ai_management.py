@@ -13,11 +13,25 @@ from app import database, models
 from app.main import app
 from app.services import ai_gateway, ai_lecturer
 from app.services.ai_provider import ConfiguredAIProvider, get_ai_provider
-from app.services.ai_lesson_contract import lesson_plan, explanation_step
+from app.services.ai_lesson_contract import (
+    LESSON_RESPONSE_SCHEMA,
+    explanation_step,
+    lesson_plan,
+    validate_lesson_response,
+    validate_explanation_response,
+)
 from tests.auth_helpers import ProtectedUserFactory
 
 client = TestClient(app)
 users = ProtectedUserFactory(client, "AIGATE")
+
+
+def deep_lesson_steps(prefix="Part"):
+    return [{"title": f"{prefix} {i + 1}",
+        "explanation": ("Detailed board explanation connects the concept to the approved syllabus. " * 3).strip(),
+        "narration": ("The lecturer develops this idea progressively, explains why it matters, and connects it to a clear example for the learner. " * 8).strip(),
+        "bullets": ["Core concept", "Applied example"], "formula": None, "flow": [], "model_3d": None}
+        for i in range(8)]
 
 
 class AIManagementTests(unittest.TestCase):
@@ -118,6 +132,33 @@ class AIManagementTests(unittest.TestCase):
         self.assertEqual(summary["budget_tokens"], 42)
         self.assertNotIn("Explain arithmetic", json.dumps(summary))
 
+    def test_hosted_adapter_sends_strict_lesson_schema(self):
+        self.save(model="openai/gpt-oss-120b")
+        with patch.object(httpx.Client, "post", return_value=self.response()) as call:
+            ai_gateway.complete_json(system="Lesson", user="Teach", context={"intent": "TEACHING_PLAN"},
+                response_schema=LESSON_RESPONSE_SCHEMA, schema_name="sys_lesson")
+        response_format = call.call_args.kwargs["json"]["response_format"]
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertEqual(response_format["json_schema"]["name"], "sys_lesson")
+        self.assertTrue(response_format["json_schema"]["strict"])
+        self.assertFalse(response_format["json_schema"]["schema"]["additionalProperties"])
+        step = response_format["json_schema"]["schema"]["properties"]["steps"]["items"]
+        self.assertFalse(step["additionalProperties"])
+        self.assertEqual(set(step["required"]), set(step["properties"]))
+
+    def test_contract_failure_is_accounted_as_failed(self):
+        self.save(model="openai/gpt-oss-120b")
+        with patch.object(httpx.Client, "post", return_value=self.response({"unexpected": True})):
+            with self.assertRaises(HTTPException) as denied:
+                ai_gateway.complete_json(system="Lesson", user="Teach", context={"intent": "TEACHING_PLAN"},
+                    response_schema=LESSON_RESPONSE_SCHEMA, schema_name="sys_lesson",
+                    response_validator=validate_lesson_response)
+        self.assertEqual(denied.exception.status_code, 502)
+        with database.SessionLocal() as db:
+            event = db.query(models.AIUsageEvent).order_by(models.AIUsageEvent.id.desc()).first()
+            self.assertEqual(event.status, "FAILED")
+            self.assertEqual(event.error_code, "CONTRACT_VALIDATION_FAILED")
+
     def test_ollama_adapter(self):
         self.save(protocol="ollama", base_url="http://127.0.0.1:11434", api_key=None)
         response = httpx.Response(200, json={"message": {"content": '{"ok":true}'}, "prompt_eval_count": 10, "eval_count": 5})
@@ -151,6 +192,14 @@ class AIManagementTests(unittest.TestCase):
             with self.assertRaises(HTTPException):
                 self.request(self.faculty)
             call.assert_not_called()
+
+    def test_strict_schema_reservation_uses_token_estimate_not_raw_bytes(self):
+        body = {"messages": [{"content": "x" * 4000}], "response_format": {
+            "type": "json_schema", "json_schema": {"schema": LESSON_RESPONSE_SCHEMA}}}
+        raw_bytes = len(json.dumps(body).encode())
+        reserved = ai_gateway.estimated_reservation(body, 1500)
+        self.assertLess(reserved, raw_bytes)
+        self.assertGreaterEqual(reserved, 1500 + 256)
 
     def test_disabled_and_connection_test(self):
         self.save(enabled=False)
@@ -188,18 +237,26 @@ class AIManagementTests(unittest.TestCase):
     def test_configured_default_and_live_plan_consumption(self):
         self.assertIsInstance(get_ai_provider(), ConfiguredAIProvider)
         self.save()
-        raw = {"steps": [{"title": f"Part {i}", "explanation": "Actual provider lesson", "narration": "A clear explanation."} for i in range(3)]}
+        raw = {"steps": deep_lesson_steps()}
         session = SimpleNamespace(topic_id=None, subject_id=None, title="Arithmetic", objectives=[], id=12, mode="INDIVIDUAL")
         with database.SessionLocal() as db, patch.object(httpx.Client, "post", return_value=self.response(raw)):
             plan = ai_lecturer._generate_plan(db, session, self.student.user)
         self.assertEqual(plan["source"], "configured_ai")
-        self.assertEqual(plan["steps"][0]["board"]["elements"][1]["text"], "Actual provider lesson")
+        self.assertIn("Detailed board explanation", plan["steps"][0]["board"]["elements"][1]["text"])
 
     def test_schema_rejects_executable_or_incomplete_payloads(self):
         with self.assertRaises(HTTPException):
             lesson_plan({"steps": [], "javascript": "alert(1)"}, "Bad")
         with self.assertRaises(HTTPException):
             explanation_step({"answer": "", "html": "<script>"})
+
+    def test_english_pilot_rejects_unreadable_telugu_narration(self):
+        steps = deep_lesson_steps()
+        steps[0]["narration"] = ("ఈ పాఠం తెలుగు లిపిలో ఉంది. " * 30).strip()
+        with self.assertRaises(HTTPException):
+            validate_lesson_response({"steps": steps})
+        with self.assertRaises(HTTPException):
+            validate_explanation_response({"answer": ("ఈ వివరణ తెలుగు లిపిలో ఉంది. " * 30).strip()})
 
     def test_concurrent_requests_cannot_oversubscribe_daily_budget(self):
         self.save(daily_requests=1)
