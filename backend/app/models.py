@@ -1503,6 +1503,39 @@ class TopicAcademicReviewerAssignment(Base):
     assigned_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class CourseTeachingPack(Base):
+    __tablename__ = "course_teaching_packs"
+    __table_args__ = (UniqueConstraint("course_id", "language", name="uq_course_teaching_pack_language"),)
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    language = Column(String(16), nullable=False, default="en-IN", server_default="en-IN")
+    status = Column(String(32), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    current_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    active_revision = Column(Integer, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    activated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class CourseTeachingPackRevision(Base):
+    __tablename__ = "course_teaching_pack_revisions"
+    __table_args__ = (UniqueConstraint("teaching_pack_id", "revision", name="uq_course_teaching_pack_revision"),)
+    id = Column(Integer, primary_key=True)
+    teaching_pack_id = Column(Integer, ForeignKey("course_teaching_packs.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision = Column(Integer, nullable=False)
+    status = Column(String(32), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    course_policy = Column(JSON, nullable=False, default=dict)
+    validation_report = Column(JSON, nullable=False, default=dict)
+    content_hash = Column(String(64), nullable=False, index=True)
+    revision_notes = Column(String(1000), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    activated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class Resource(Base):
     __tablename__ = "resources"
 

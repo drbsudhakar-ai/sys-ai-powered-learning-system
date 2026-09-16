@@ -36,6 +36,21 @@ def require_manage_subject(db, actor, subject):
         raise HTTPException(403, "This academic content is outside your assigned responsibility")
 
 
+def require_manage_course(db: Session, actor, course_id: int):
+    course = db.get(models.Course, course_id)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    role = (actor.role or "").lower()
+    if role in {"admin", "super_admin"}:
+        return course
+    coordinator = role == "faculty" and actor.is_active and db.query(
+        models.FacultyCourseAssignment.id).filter_by(
+        faculty_id=actor.id, course_id=course_id).first()
+    if not coordinator:
+        raise HTTPException(403, "Course Knowledge Studio is restricted to administrators and the assigned coordinator")
+    return course
+
+
 def _audit(db, actor, action, target_type, target_id, summary, **details):
     db.add(models.AdminAuditLog(actor_user_id=actor.id, action=action,
         target_type=target_type, target_id=target_id, summary=summary[:255], details=details))
@@ -230,3 +245,155 @@ def benchmark_readiness(db, actor, course_id):
     return {"course_id": course_id, "subject_count": len(subjects),
         "ready_subject_count": sum(item["ready"] for item in items),
         "ready": bool(subjects) and all(item["ready"] for item in items), "items": items}
+
+
+COURSE_POLICY_FIELDS = (
+    "audience", "teaching_objective", "default_language", "required_lesson_stages",
+    "delivery_requirements", "accuracy_requirements",
+)
+
+
+def save_teaching_pack_revision(db, actor, course_id, payload):
+    require_manage_course(db, actor, course_id)
+    pack = db.query(models.CourseTeachingPack).filter_by(
+        course_id=course_id, language=payload.language).first()
+    if not pack:
+        pack = models.CourseTeachingPack(course_id=course_id, language=payload.language,
+            status="DRAFT", current_revision=0, created_by=actor.id)
+        db.add(pack); db.flush()
+    revision_number = pack.current_revision + 1
+    policy = payload.course_policy
+    revision = models.CourseTeachingPackRevision(teaching_pack_id=pack.id,
+        revision=revision_number, status="DRAFT", course_policy=policy,
+        validation_report={}, content_hash=_hash(policy), revision_notes=payload.revision_notes,
+        created_by=actor.id)
+    pack.current_revision = revision_number
+    if pack.status != "ACTIVE":
+        pack.status = "DRAFT"
+    db.add(revision)
+    _audit(db, actor, "teaching_pack.revise", "course_teaching_pack", pack.id,
+        f"Created Course Teaching Pack revision {revision_number}", revision=revision_number)
+    db.commit(); db.refresh(pack); db.refresh(revision)
+    return pack, revision
+
+
+def _teaching_pack_validation(db, pack, revision):
+    errors = []
+    policy = revision.course_policy or {}
+    for field in COURSE_POLICY_FIELDS:
+        value = policy.get(field)
+        if value is None or value == "" or value == []:
+            errors.append(f"Course policy field '{field}' is required")
+    subjects = db.query(models.Subject).filter_by(course_id=pack.course_id).all()
+    if not subjects:
+        errors.append("The course has no saved subjects")
+    profiles = db.query(models.SubjectProfessorProfile).filter(
+        models.SubjectProfessorProfile.subject_id.in_([row.id for row in subjects]),
+        models.SubjectProfessorProfile.language == pack.language).all() if subjects else []
+    profile_subject_ids = {row.subject_id for row in profiles}
+    for subject in subjects:
+        if subject.id not in profile_subject_ids:
+            errors.append(f"Subject Delivery Guide is missing for {subject.name}")
+    return {"valid": not errors, "errors": errors,
+        "subject_count": len(subjects), "subject_guides": len(profile_subject_ids),
+        "validated_at": datetime.now(timezone.utc).isoformat()}
+
+
+def decide_teaching_pack(db, actor, course_id, revision_number, payload):
+    pack = db.query(models.CourseTeachingPack).filter_by(course_id=course_id).first()
+    if not pack:
+        raise HTTPException(404, "Course Teaching Pack not found")
+    revision = db.query(models.CourseTeachingPackRevision).filter_by(
+        teaching_pack_id=pack.id, revision=revision_number).first()
+    if not revision:
+        raise HTTPException(404, "Course Teaching Pack revision not found")
+    require_manage_course(db, actor, course_id)
+    report = _teaching_pack_validation(db, pack, revision)
+    revision.validation_report = report
+    if payload.action == "VALIDATE":
+        revision.status = "VALIDATED" if report["valid"] else "NEEDS_CORRECTION"
+        if revision_number == pack.current_revision and pack.status != "ACTIVE":
+            pack.status = revision.status
+    else:
+        if (actor.role or "").lower() not in {"admin", "super_admin"}:
+            raise HTTPException(403, "Administrator activation is required")
+        if not report["valid"]:
+            revision.status = "NEEDS_CORRECTION"
+            db.commit()
+            raise HTTPException(409, {"message": "Teaching Pack validation failed", "errors": report["errors"]})
+        db.query(models.CourseTeachingPackRevision).filter(
+            models.CourseTeachingPackRevision.teaching_pack_id == pack.id,
+            models.CourseTeachingPackRevision.status == "ACTIVE").update({"status": "SUPERSEDED"})
+        now = datetime.now(timezone.utc)
+        revision.status = "ACTIVE"; revision.activated_by = actor.id; revision.activated_at = now
+        pack.status = "ACTIVE"; pack.active_revision = revision.revision
+        pack.activated_by = actor.id; pack.activated_at = now
+        subject_ids = [row[0] for row in db.query(models.Subject.id).filter_by(course_id=course_id).all()]
+        if subject_ids:
+            db.query(models.SubjectProfessorProfile).filter(
+                models.SubjectProfessorProfile.subject_id.in_(subject_ids),
+                models.SubjectProfessorProfile.language == pack.language).update({
+                    "status": "APPROVED", "approved_by": actor.id, "approved_at": now},
+                    synchronize_session=False)
+    _audit(db, actor, f"teaching_pack.{payload.action.lower()}", "course_teaching_pack", pack.id,
+        f"{payload.action.title()} Course Teaching Pack revision {revision.revision}",
+        comment=payload.comment, validation=report)
+    db.commit(); db.refresh(pack); db.refresh(revision)
+    return pack, revision
+
+
+def course_knowledge_studio(db, actor, course_id, language="en-IN"):
+    course = require_manage_course(db, actor, course_id)
+    pack = db.query(models.CourseTeachingPack).filter_by(course_id=course_id, language=language).first()
+    revision = db.query(models.CourseTeachingPackRevision).filter_by(
+        teaching_pack_id=pack.id, revision=pack.current_revision).first() if pack else None
+    subjects = db.query(models.Subject).filter_by(course_id=course_id).order_by(
+        models.Subject.sequence, models.Subject.id).all()
+    items = []
+    totals = {"subjects": len(subjects), "units": 0, "topics": 0, "subtopics": 0,
+        "topic_packages": 0, "approved_topic_packages": 0, "covered_subtopics": 0}
+    for subject in subjects:
+        units = db.query(models.Unit).filter_by(subject_id=subject.id).count()
+        topic_rows = db.query(models.Topic).filter_by(subject_id=subject.id).all()
+        topic_ids = [row.id for row in topic_rows]
+        subtopics = db.query(models.Subtopic).filter(models.Subtopic.topic_id.in_(topic_ids)).count() if topic_ids else 0
+        packages = db.query(models.TopicKnowledgePackage).filter(
+            models.TopicKnowledgePackage.topic_id.in_(topic_ids),
+            models.TopicKnowledgePackage.language == language).all() if topic_ids else []
+        approved = [row for row in packages if row.status == "APPROVED"]
+        covered_subtopics = set()
+        for package in packages:
+            package_revision = db.query(models.TopicKnowledgeRevision).filter_by(
+                package_id=package.id, revision=package.current_revision).first()
+            for entry in (package_revision.subtopic_coverage if package_revision else []) or []:
+                value = entry.get("subtopic_id") if isinstance(entry, dict) else entry
+                if value: covered_subtopics.add(value)
+        profile = db.query(models.SubjectProfessorProfile).filter_by(
+            subject_id=subject.id, language=language).first()
+        items.append({"subject_id": subject.id, "subject_name": subject.name,
+            "unit_count": units, "topic_count": len(topic_ids), "subtopic_count": subtopics,
+            "topic_package_count": len(packages), "approved_topic_package_count": len(approved),
+            "covered_subtopic_count": len(covered_subtopics),
+            "delivery_guide": profile_out_dict(profile) if profile else None})
+        totals["units"] += units; totals["topics"] += len(topic_ids); totals["subtopics"] += subtopics
+        totals["topic_packages"] += len(packages); totals["approved_topic_packages"] += len(approved)
+        totals["covered_subtopics"] += len(covered_subtopics)
+    provider = db.get(models.AIProviderSettings, 1)
+    return {"course": {"id": course.id, "title": course.title, "programme_code": course.programme_code,
+            "publication_status": str(course.publication_status).split(".")[-1]},
+        "access_mode": "ADMINISTRATOR" if (actor.role or "").lower() in {"admin", "super_admin"} else "COURSE_COORDINATOR",
+        "teaching_pack": {"id": pack.id, "language": pack.language, "status": pack.status,
+            "current_revision": pack.current_revision, "active_revision": pack.active_revision,
+            "course_policy": revision.course_policy if revision else {},
+            "validation_report": revision.validation_report if revision else {}} if pack else None,
+        "coverage": totals, "subjects": items,
+        "future_capabilities": {"external_import": "P036.2B", "ai_generation": "P036.2C"},
+        "provider": {"configured": bool(provider), "enabled": bool(provider and provider.enabled),
+            "label": provider.label if provider else None, "model": provider.model if provider else None,
+            "max_output_tokens": provider.max_output_tokens if provider else None}}
+
+
+def profile_out_dict(row):
+    return {name: getattr(row, name) for name in ("id", "subject_id", "language", "version", "status",
+        "teaching_strategy", "required_stage_types", "example_rules", "narration_rules", "visual_rules",
+        "assessment_rules", "accuracy_constraints")} if row else None

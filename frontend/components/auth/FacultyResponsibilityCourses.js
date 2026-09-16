@@ -224,6 +224,10 @@ export default function FacultyResponsibilityCourses({ mode }) {
                       <ClipboardDocumentCheckIcon />
                       Course weightages
                     </Link>
+                    <Link href={`/faculty/coordinator-courses/${course.id}/knowledge-studio`}>
+                      <AcademicCapIcon />
+                      Course Knowledge Studio
+                    </Link>
                   </div>
                 </article>
               ))

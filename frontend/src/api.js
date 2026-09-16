@@ -617,4 +617,14 @@ export const testAIProviderConnection = () =>
   API.post("/admin/ai/provider/test", {}, { timeout: 55000 });
 export const getAIUsage = () => API.get("/admin/ai/usage");
 
+// P036.2A Course Knowledge Studio
+export const getCourseKnowledgeStudio = (courseId, language = "en-IN") =>
+  API.get(`/academic-content/courses/${courseId}/knowledge-studio`, { params: { language } });
+export const createCourseTeachingPackRevision = (courseId, payload) =>
+  API.post(`/academic-content/courses/${courseId}/teaching-pack/revisions`, payload);
+export const decideCourseTeachingPack = (courseId, revision, payload) =>
+  API.post(`/academic-content/courses/${courseId}/teaching-pack/revisions/${revision}/decision`, payload);
+export const saveSubjectDeliveryGuide = (payload) =>
+  API.put("/academic-content/professor-profiles", payload);
+
 export default API;

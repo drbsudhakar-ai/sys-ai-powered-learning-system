@@ -16,6 +16,7 @@ class AcademicContentFoundationTests(unittest.TestCase):
         cls.admin = users.create("admin")
         cls.expert = users.create("faculty", {"employee_code": "P036-EXPERT"})
         cls.reviewer = users.create("faculty", {"employee_code": "P036-REVIEWER"})
+        cls.coordinator = users.create("faculty", {"employee_code": "P036-COORDINATOR"})
 
     def setUp(self):
         suffix = uuid.uuid4().hex[:8]
@@ -28,6 +29,7 @@ class AcademicContentFoundationTests(unittest.TestCase):
             self.topic = models.Topic(name=f"Ratio {suffix}", subject_id=self.subject.id)
             db.add(self.topic); db.flush()
             db.add(models.SubjectExpertAssignment(faculty_id=self.expert.user_id, subject_id=self.subject.id))
+            db.add(models.FacultyCourseAssignment(faculty_id=self.coordinator.user_id, course_id=self.course.id))
             db.commit()
             self.course_id, self.subject_id, self.topic_id = self.course.id, self.subject.id, self.topic.id
 
@@ -114,6 +116,37 @@ class AcademicContentFoundationTests(unittest.TestCase):
         self.assertEqual(readiness.status_code, 200, readiness.text)
         self.assertEqual(readiness.json()["subject_count"], 1)
         self.assertFalse(readiness.json()["ready"])
+
+    def test_course_knowledge_studio_validation_and_admin_activation(self):
+        policy = {"audience": "Competitive examination learners", "teaching_objective": "Build accurate conceptual mastery and exam application.",
+            "default_language": "en-IN", "required_lesson_stages": ["INTRODUCTION", "CONCEPT", "EXAMPLE", "PRACTICE", "RECAP"],
+            "delivery_requirements": ["Explain reasoning conversationally"], "accuracy_requirements": ["Use approved knowledge only"]}
+        created = client.post(f"/academic-content/courses/{self.course_id}/teaching-pack/revisions",
+            headers=self.headers(self.coordinator), json={"language": "en-IN", "course_policy": policy, "revision_notes": "Pilot policy"})
+        self.assertEqual(created.status_code, 201, created.text)
+        revision = created.json()["current_revision"]
+        incomplete = client.post(f"/academic-content/courses/{self.course_id}/teaching-pack/revisions/{revision}/decision",
+            headers=self.headers(self.coordinator), json={"action": "VALIDATE", "comment": "Validate initial teaching pack."})
+        self.assertEqual(incomplete.status_code, 200, incomplete.text)
+        self.assertEqual(incomplete.json()["revision"]["status"], "NEEDS_CORRECTION")
+        profile = client.put("/academic-content/professor-profiles", headers=self.headers(self.coordinator), json={
+            "subject_id": self.subject_id, "language": "en-IN", "teaching_strategy": {"sequence": "concept-example-practice-recap"},
+            "required_stage_types": ["INTRODUCTION", "CONCEPT", "EXPLANATION", "EXAMPLE", "RECAP"],
+            "example_rules": ["Show every step"], "narration_rules": ["Explain, do not merely read"],
+            "visual_rules": ["Use worked boards"], "assessment_rules": ["Check understanding"],
+            "accuracy_constraints": ["Recheck every answer"]})
+        self.assertEqual(profile.status_code, 200, profile.text)
+        denied = client.post(f"/academic-content/courses/{self.course_id}/teaching-pack/revisions/{revision}/decision",
+            headers=self.headers(self.coordinator), json={"action": "ACTIVATE", "comment": "Attempt coordinator activation."})
+        self.assertEqual(denied.status_code, 403, denied.text)
+        activated = client.post(f"/academic-content/courses/{self.course_id}/teaching-pack/revisions/{revision}/decision",
+            headers=self.headers(self.admin), json={"action": "ACTIVATE", "comment": "Administrator approved the governed teaching pack."})
+        self.assertEqual(activated.status_code, 200, activated.text)
+        self.assertEqual(activated.json()["status"], "ACTIVE")
+        studio = client.get(f"/academic-content/courses/{self.course_id}/knowledge-studio", headers=self.headers(self.coordinator))
+        self.assertEqual(studio.status_code, 200, studio.text)
+        self.assertEqual(studio.json()["teaching_pack"]["active_revision"], revision)
+        self.assertEqual(studio.json()["subjects"][0]["delivery_guide"]["status"], "APPROVED")
 
 
 if __name__ == "__main__":

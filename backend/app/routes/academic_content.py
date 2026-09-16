@@ -32,6 +32,16 @@ def profile_out(row):
         "assessment_rules", "accuracy_constraints", "created_by", "approved_by", "approved_at", "created_at")}
 
 
+def teaching_pack_out(pack, revision=None):
+    data = {name: getattr(pack, name) for name in ("id", "course_id", "language", "status",
+        "current_revision", "active_revision", "created_by", "activated_by", "activated_at", "created_at")}
+    if revision:
+        data["revision"] = {name: getattr(revision, name) for name in ("id", "revision", "status",
+            "course_policy", "validation_report", "content_hash", "revision_notes", "created_by",
+            "activated_by", "activated_at", "created_at")}
+    return data
+
+
 @router.post("/sources", status_code=201)
 def create_source(payload: schemas.AcademicSourceCreate, db: Session = Depends(database.get_db), actor=Depends(_staff)):
     return source_out(service.create_source(db, actor, payload))
@@ -116,3 +126,23 @@ def my_reviewer_assignments(db: Session = Depends(database.get_db), actor=Depend
 @router.get("/courses/{course_id}/benchmark-readiness")
 def benchmark_readiness(course_id: int, db: Session = Depends(database.get_db), actor=Depends(_staff)):
     return service.benchmark_readiness(db, actor, course_id)
+
+
+@router.get("/courses/{course_id}/knowledge-studio")
+def course_knowledge_studio(course_id: int, language: str = "en-IN",
+        db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.course_knowledge_studio(db, actor, course_id, language)
+
+
+@router.post("/courses/{course_id}/teaching-pack/revisions", status_code=201)
+def create_teaching_pack_revision(course_id: int, payload: schemas.CourseTeachingPackRevisionCreate,
+        db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    pack, revision = service.save_teaching_pack_revision(db, actor, course_id, payload)
+    return teaching_pack_out(pack, revision)
+
+
+@router.post("/courses/{course_id}/teaching-pack/revisions/{revision}/decision")
+def decide_teaching_pack(course_id: int, revision: int, payload: schemas.TeachingPackDecision,
+        db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    pack, row = service.decide_teaching_pack(db, actor, course_id, revision, payload)
+    return teaching_pack_out(pack, row)

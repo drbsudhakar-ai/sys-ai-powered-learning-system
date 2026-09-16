@@ -1342,3 +1342,18 @@ class TopicReviewerAssignmentCreate(BaseModel):
     topic_id: int
     faculty_id: int
     model_config = {"extra": "forbid"}
+
+
+class CourseTeachingPackRevisionCreate(BaseModel):
+    language: str = Field(default="en-IN", min_length=2, max_length=16)
+    course_policy: Dict[str, Any]
+    revision_notes: Optional[str] = Field(None, max_length=1000)
+
+    model_config = {"extra": "forbid"}
+
+
+class TeachingPackDecision(BaseModel):
+    action: Literal["VALIDATE", "ACTIVATE"]
+    comment: str = Field(min_length=5, max_length=1000)
+
+    model_config = {"extra": "forbid"}
