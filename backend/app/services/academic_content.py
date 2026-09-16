@@ -129,6 +129,7 @@ def create_knowledge_revision(db, actor, payload):
 
 TRANSITIONS = {
     ("DRAFT", "SUBMIT"): "SOURCE_REVIEW", ("CHANGES_REQUESTED", "SUBMIT"): "SOURCE_REVIEW",
+    ("PILOT_APPROVED", "SUBMIT"): "SOURCE_REVIEW",
     ("SOURCE_REVIEW", "EXPERT_VERIFY"): "EXPERT_VERIFIED",
     ("SOURCE_REVIEW", "REQUEST_CHANGES"): "CHANGES_REQUESTED",
     ("EXPERT_VERIFIED", "REQUEST_CHANGES"): "CHANGES_REQUESTED",
@@ -140,7 +141,10 @@ def decide_knowledge_package(db, actor, package_id, payload):
     package = db.get(models.TopicKnowledgePackage, package_id)
     if not package: raise HTTPException(404, "Knowledge package not found")
     topic, subject, _ = topic_scope(db, package.topic_id)
-    require_manage_subject(db, actor, subject)
+    assigned_reviewer = db.query(models.TopicAcademicReviewerAssignment.id).filter_by(
+        topic_id=topic.id, faculty_id=actor.id, is_active=True).first()
+    if not (assigned_reviewer and payload.action in {"EXPERT_VERIFY", "REQUEST_CHANGES"}):
+        require_manage_subject(db, actor, subject)
     previous_status = package.status
     target = TRANSITIONS.get((previous_status, payload.action))
     if not target: raise HTTPException(409, f"Cannot {payload.action.lower()} a {package.status} package")
@@ -149,7 +153,7 @@ def decide_knowledge_package(db, actor, package_id, payload):
     if payload.action == "EXPERT_VERIFY":
         expert = db.query(models.SubjectExpertAssignment.id).filter_by(
             faculty_id=actor.id, subject_id=subject.id).first()
-        if not expert and (actor.role or "").lower() not in {"admin", "super_admin"}:
+        if not expert and not assigned_reviewer and (actor.role or "").lower() not in {"admin", "super_admin"}:
             raise HTTPException(403, "Assigned Subject Expert verification is required")
     package.status = target
     if target == "APPROVED":
@@ -245,6 +249,116 @@ def benchmark_readiness(db, actor, course_id):
     return {"course_id": course_id, "subject_count": len(subjects),
         "ready_subject_count": sum(item["ready"] for item in items),
         "ready": bool(subjects) and all(item["ready"] for item in items), "items": items}
+
+
+def knowledge_review_workspace(db, actor, course_id):
+    course = db.get(models.Course, course_id)
+    if not course: raise HTTPException(404, "Course not found")
+    role = (actor.role or "").lower()
+    assigned_topic_ids = None
+    if role == "faculty":
+        assigned_topic_ids = {row[0] for row in db.query(models.TopicAcademicReviewerAssignment.topic_id).filter_by(
+            faculty_id=actor.id, is_active=True).all()}
+        coordinator = db.query(models.FacultyCourseAssignment.id).filter_by(
+            faculty_id=actor.id, course_id=course_id).first()
+        if not assigned_topic_ids and not coordinator:
+            raise HTTPException(403, "No academic review responsibility is assigned in this course")
+    packages = db.query(models.TopicKnowledgePackage).join(models.Topic).join(models.Subject).filter(
+        models.Subject.course_id == course_id).order_by(models.Subject.sequence, models.Topic.sequence).all()
+    items = []
+    for package in packages:
+        if assigned_topic_ids is not None and package.topic_id not in assigned_topic_ids:
+            continue
+        topic = db.get(models.Topic, package.topic_id); subject = topic.subject
+        revision = db.query(models.TopicKnowledgeRevision).filter_by(
+            package_id=package.id, revision=package.current_revision).first()
+        assignments = db.query(models.TopicAcademicReviewerAssignment).filter_by(
+            topic_id=topic.id, is_active=True).all()
+        reviewers = []
+        for assignment in assignments:
+            faculty = db.get(models.User, assignment.faculty_id)
+            reviewers.append({"assignment_id": assignment.id, "faculty_id": assignment.faculty_id,
+                "faculty_name": faculty.name if faculty else "Unavailable faculty",
+                "faculty_email": faculty.email if faculty else None})
+        items.append({"package_id": package.id, "topic_id": topic.id, "topic_name": topic.name,
+            "subject_id": subject.id, "subject_name": subject.name, "language": package.language,
+            "status": package.status, "current_revision": package.current_revision,
+            "reviewers": reviewers, "revision": {name: getattr(revision, name) for name in (
+                "objectives", "prerequisites", "concepts", "definitions", "formulas", "verified_facts",
+                "worked_examples", "misconceptions", "exam_relevance", "subtopic_coverage",
+                "source_revision_ids", "content_hash")} if revision else None})
+    counts = {status: sum(item["status"] == status for item in items) for status in (
+        "DRAFT", "SOURCE_REVIEW", "EXPERT_VERIFIED", "CHANGES_REQUESTED", "PILOT_APPROVED", "APPROVED")}
+    return {"course_id": course.id, "course_title": course.title, "items": items, "counts": counts,
+        "ready": bool(items) and all(item["status"] == "APPROVED" for item in items),
+        "can_administer": role in {"admin", "super_admin"}}
+
+
+def my_knowledge_reviews(db, actor):
+    if (actor.role or "").lower() != "faculty":
+        raise HTTPException(403, "Faculty reviewer access is required")
+    course_ids = {row[0] for row in db.query(models.Subject.course_id).join(
+        models.Topic, models.Topic.subject_id == models.Subject.id).join(
+        models.TopicAcademicReviewerAssignment,
+        models.TopicAcademicReviewerAssignment.topic_id == models.Topic.id).filter(
+        models.TopicAcademicReviewerAssignment.faculty_id == actor.id,
+        models.TopicAcademicReviewerAssignment.is_active.is_(True)).all()}
+    courses = [knowledge_review_workspace(db, actor, course_id) for course_id in sorted(course_ids)]
+    return {"courses": courses, "assignment_count": sum(len(course["items"]) for course in courses)}
+
+
+def _pilot_package_check(db, package):
+    revision = db.query(models.TopicKnowledgeRevision).filter_by(
+        package_id=package.id, revision=package.current_revision).first()
+    errors = []
+    if not revision: return ["Current revision is missing"]
+    for field in ("objectives", "concepts", "worked_examples", "misconceptions", "exam_relevance", "source_revision_ids"):
+        if not getattr(revision, field, None): errors.append(f"{field.replace('_', ' ').title()} is missing")
+    topic_subtopics = {row.id for row in db.query(models.Subtopic).filter_by(topic_id=package.topic_id)}
+    covered = {entry.get("subtopic_id") for entry in (revision.subtopic_coverage or []) if isinstance(entry, dict)}
+    if topic_subtopics - covered: errors.append(f"{len(topic_subtopics - covered)} syllabus subtopics are not covered")
+    verified_sources = db.query(models.AcademicSource.id).join(models.AcademicSourceRevision).filter(
+        models.AcademicSourceRevision.id.in_(revision.source_revision_ids or []),
+        models.AcademicSource.verification_status == "VERIFIED").count()
+    if verified_sources != len(set(revision.source_revision_ids or [])): errors.append("Every source revision must be verified")
+    return errors
+
+
+def pilot_knowledge_approval_preview(db, actor, course_id):
+    course = require_manage_course(db, actor, course_id)
+    if (actor.role or "").lower() not in {"admin", "super_admin"}:
+        raise HTTPException(403, "Administrator pilot approval is required")
+    packages = db.query(models.TopicKnowledgePackage).join(models.Topic).join(models.Subject).filter(
+        models.Subject.course_id == course_id).order_by(models.Subject.sequence, models.Topic.sequence).all()
+    items = []
+    for package in packages:
+        topic = db.get(models.Topic, package.topic_id); errors = _pilot_package_check(db, package)
+        items.append({"package_id": package.id, "subject_name": topic.subject.name, "topic_name": topic.name,
+            "status": package.status, "eligible": not errors and package.status in {"DRAFT", "CHANGES_REQUESTED"},
+            "errors": errors})
+    eligible = [item for item in items if item["eligible"]]
+    return {"course_id": course.id, "course_code": course.programme_code, "package_count": len(items),
+        "eligible_count": len(eligible), "expected_package_ids": [item["package_id"] for item in eligible],
+        "items": items, "declaration": "Pilot approval permits controlled demonstration only; independent expert verification and institutional approval remain pending."}
+
+
+def pilot_approve_knowledge_packages(db, actor, course_id, payload):
+    preview = pilot_knowledge_approval_preview(db, actor, course_id)
+    if payload.course_code.strip() != (preview["course_code"] or ""):
+        raise HTTPException(422, "Enter the exact course code to confirm pilot approval")
+    if sorted(set(payload.expected_package_ids)) != sorted(preview["expected_package_ids"]):
+        raise HTTPException(409, "Eligible packages changed; refresh the pilot approval preview")
+    now = datetime.now(timezone.utc)
+    for package_id in preview["expected_package_ids"]:
+        package = db.get(models.TopicKnowledgePackage, package_id)
+        package.status = "PILOT_APPROVED"; package.approved_by = actor.id; package.approved_at = now
+    _audit(db, actor, "knowledge_package.pilot_bulk_approve", "course", course_id,
+        f"Pilot approved {len(preview['expected_package_ids'])} knowledge packages",
+        package_ids=preview["expected_package_ids"], reason=payload.reason,
+        governance="CONTROLLED_PILOT_NOT_INSTITUTIONAL_APPROVAL")
+    db.commit()
+    return {"approved_count": len(preview["expected_package_ids"]), "status": "PILOT_APPROVED",
+        "package_ids": preview["expected_package_ids"], "institutional_approval": False}
 
 
 COURSE_POLICY_FIELDS = (
@@ -397,3 +511,103 @@ def profile_out_dict(row):
     return {name: getattr(row, name) for name in ("id", "subject_id", "language", "version", "status",
         "teaching_strategy", "required_stage_types", "example_rules", "narration_rules", "visual_rules",
         "assessment_rules", "accuracy_constraints")} if row else None
+
+
+def external_import_template(db, actor, course_id):
+    course = require_manage_course(db, actor, course_id)
+    subjects = []
+    for subject in db.query(models.Subject).filter_by(course_id=course_id).order_by(models.Subject.sequence, models.Subject.id):
+        units = []
+        for unit in db.query(models.Unit).filter_by(subject_id=subject.id).order_by(models.Unit.sequence, models.Unit.id):
+            topics = []
+            for topic in db.query(models.Topic).filter_by(subject_id=subject.id, unit_id=unit.id).order_by(models.Topic.sequence, models.Topic.id):
+                subtopics = [{"subtopic_id": row.id, "name": row.name} for row in db.query(models.Subtopic).filter_by(
+                    topic_id=topic.id).order_by(models.Subtopic.sequence, models.Subtopic.id)]
+                topics.append({"topic_id": topic.id, "name": topic.name, "subtopics": subtopics})
+            units.append({"unit_id": unit.id, "name": unit.name, "topics": topics})
+        subjects.append({"subject_id": subject.id, "name": subject.name, "units": units})
+    return {"schema_version": "SYS-KP-1.0", "course": {"course_id": course.id, "title": course.title,
+        "programme_code": course.programme_code}, "syllabus_reference": subjects,
+        "import_name": f"{course.programme_code or course.id} external knowledge import",
+        "source": {"source_code": "REPLACE-WITH-UNIQUE-CODE", "title": "Authoritative source title",
+            "source_type": "TEXTBOOK", "issuing_authority": "Issuing authority", "canonical_url": None,
+            "rights_classification": "REFERENCE_ONLY", "content_text": "Paste the source material used to prepare these packages.",
+            "verification_statement": "I verified this source and confirm that the imported content is grounded in it."},
+        "packages": [{"topic_id": 0, "language": "en-IN", "objectives": ["Replace with a measurable objective"],
+            "prerequisites": [], "concepts": [{"name": "Concept", "explanation": "Detailed explanation"}],
+            "definitions": [], "formulas": [], "verified_facts": [], "worked_examples": [],
+            "misconceptions": [], "exam_relevance": {},
+            "subtopic_coverage": [{"subtopic_id": 0, "coverage": "Explain how the package covers this subtopic"}]}]}
+
+
+def preview_external_import(db, actor, course_id, payload):
+    require_manage_course(db, actor, course_id)
+    raw = payload.model_dump(exclude={"preview_hash", "confirmation"})
+    errors, warnings, mapped, seen = [], [], [], set()
+    source_code = payload.source.source_code.strip().upper()
+    existing_source = db.query(models.AcademicSource).filter_by(course_id=course_id, source_code=source_code).first()
+    if existing_source:
+        errors.append(f"Source code {source_code} already exists in this course")
+    for index, item in enumerate(payload.packages, 1):
+        if item.topic_id in seen:
+            errors.append(f"Package {index}: topic {item.topic_id} occurs more than once")
+            continue
+        seen.add(item.topic_id)
+        topic = db.get(models.Topic, item.topic_id)
+        if not topic or not topic.subject or topic.subject.course_id != course_id:
+            errors.append(f"Package {index}: topic {item.topic_id} does not belong to this course")
+            continue
+        valid_subtopics = {row.id for row in db.query(models.Subtopic).filter_by(topic_id=topic.id)}
+        requested = {entry.get("subtopic_id") for entry in item.subtopic_coverage if entry.get("subtopic_id")}
+        invalid = sorted(requested - valid_subtopics)
+        if invalid: errors.append(f"Package {index}: subtopics {invalid} do not belong to topic {topic.id}")
+        if valid_subtopics - requested:
+            warnings.append(f"{topic.name}: {len(valid_subtopics - requested)} syllabus subtopics are not covered")
+        existing = db.query(models.TopicKnowledgePackage).filter_by(topic_id=topic.id, language=item.language).first()
+        mapped.append({"topic_id": topic.id, "topic_name": topic.name, "subject_id": topic.subject_id,
+            "subject_name": topic.subject.name, "subtopics_total": len(valid_subtopics),
+            "subtopics_covered": len(requested & valid_subtopics), "result": "NEW_REVISION" if existing else "NEW_PACKAGE",
+            "next_revision": (existing.current_revision + 1) if existing else 1})
+    return {"valid": not errors, "preview_hash": _hash(raw), "errors": errors, "warnings": warnings,
+        "package_count": len(payload.packages), "mapped_packages": mapped,
+        "source": {"source_code": source_code, "title": payload.source.title}}
+
+
+def commit_external_import(db, actor, course_id, payload):
+    if (actor.role or "").lower() not in {"admin", "super_admin"}:
+        raise HTTPException(403, "Administrator import approval is required")
+    preview = preview_external_import(db, actor, course_id, payload)
+    if payload.preview_hash != preview["preview_hash"]:
+        raise HTTPException(409, "The import file changed after preview; preview it again")
+    if not preview["valid"]:
+        raise HTTPException(422, {"message": "External package validation failed", "errors": preview["errors"]})
+    now = datetime.now(timezone.utc); source_data = payload.source
+    source = models.AcademicSource(course_id=course_id, source_code=source_data.source_code.strip().upper(),
+        title=source_data.title.strip(), source_type=source_data.source_type,
+        issuing_authority=source_data.issuing_authority, canonical_url=source_data.canonical_url,
+        rights_classification=source_data.rights_classification, verification_status="VERIFIED",
+        current_revision=1, created_by=actor.id, verified_by=actor.id, verified_at=now)
+    db.add(source); db.flush()
+    source_revision = models.AcademicSourceRevision(source_id=source.id, revision=1,
+        content_text=source_data.content_text.strip(), content_hash=_hash(source_data.content_text.strip()),
+        notes=source_data.verification_statement, created_by=actor.id)
+    db.add(source_revision); db.flush()
+    imported = []
+    for item in payload.packages:
+        package = db.query(models.TopicKnowledgePackage).filter_by(topic_id=item.topic_id, language=item.language).first()
+        if not package:
+            package = models.TopicKnowledgePackage(topic_id=item.topic_id, language=item.language,
+                status="DRAFT", current_revision=0, created_by=actor.id); db.add(package); db.flush()
+        package.current_revision += 1; package.status = "DRAFT"; package.approved_by = None; package.approved_at = None
+        content = item.model_dump(); content["source_revision_ids"] = [source_revision.id]
+        revision = models.TopicKnowledgeRevision(package_id=package.id, revision=package.current_revision,
+            content_hash=_hash(content), created_by=actor.id, **{key: value for key, value in content.items()
+                if key not in {"topic_id", "language"}})
+        db.add(revision); imported.append({"topic_id": item.topic_id, "package_id": package.id,
+            "revision": package.current_revision, "status": package.status})
+    _audit(db, actor, "knowledge_import.commit", "course", course_id,
+        f"Imported {len(imported)} external knowledge packages", import_name=payload.import_name,
+        source_id=source.id, preview_hash=payload.preview_hash, confirmation=payload.confirmation)
+    db.commit()
+    return {"imported": len(imported), "source_id": source.id, "source_revision_id": source_revision.id,
+        "packages": imported, "warnings": preview["warnings"]}

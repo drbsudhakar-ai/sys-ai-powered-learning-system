@@ -626,5 +626,23 @@ export const decideCourseTeachingPack = (courseId, revision, payload) =>
   API.post(`/academic-content/courses/${courseId}/teaching-pack/revisions/${revision}/decision`, payload);
 export const saveSubjectDeliveryGuide = (payload) =>
   API.put("/academic-content/professor-profiles", payload);
+export const getExternalKnowledgeTemplate = (courseId) =>
+  API.get(`/academic-content/courses/${courseId}/external-import/template`);
+export const previewExternalKnowledgeImport = (courseId, payload) =>
+  API.post(`/academic-content/courses/${courseId}/external-import/preview`, payload);
+export const commitExternalKnowledgeImport = (courseId, payload) =>
+  API.post(`/academic-content/courses/${courseId}/external-import/commit`, payload);
+export const getKnowledgeReviewWorkspace = (courseId) =>
+  API.get(`/academic-content/courses/${courseId}/knowledge-review-workspace`);
+export const assignAcademicReviewer = (payload) =>
+  API.post("/academic-content/reviewers", payload);
+export const decideKnowledgePackage = (packageId, payload) =>
+  API.post(`/academic-content/knowledge-packages/${packageId}/decision`, payload);
+export const getMyKnowledgeReviews = () =>
+  API.get("/academic-content/reviewers/me/workspace");
+export const getPilotKnowledgeApprovalPreview = (courseId) =>
+  API.get(`/academic-content/courses/${courseId}/pilot-knowledge-approval-preview`);
+export const pilotApproveKnowledgePackages = (courseId, payload) =>
+  API.post(`/academic-content/courses/${courseId}/pilot-approve-knowledge`, payload);
 
 export default API;

@@ -39,6 +39,7 @@ const FACULTY_ITEMS = [
   ["Learning sessions", "/learning-sessions", BookOpenIcon],
   ["Assessments", "/assessments", ClipboardDocumentCheckIcon],
   ["Student learning", "/performance", UserGroupIcon],
+  ["Academic content reviews", "/faculty/academic-reviews", ClipboardDocumentCheckIcon],
   ["Academic reports", "/analytics", ChartBarIcon],
   ["Notifications", "/notifications", BellIcon],
 ];

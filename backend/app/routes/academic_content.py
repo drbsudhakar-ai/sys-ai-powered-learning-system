@@ -123,9 +123,30 @@ def my_reviewer_assignments(db: Session = Depends(database.get_db), actor=Depend
         "topic_name": db.get(models.Topic, row.topic_id).name, "assigned_at": row.assigned_at} for row in rows]}
 
 
+@router.get("/reviewers/me/workspace")
+def my_knowledge_reviews(db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.my_knowledge_reviews(db, actor)
+
+
 @router.get("/courses/{course_id}/benchmark-readiness")
 def benchmark_readiness(course_id: int, db: Session = Depends(database.get_db), actor=Depends(_staff)):
     return service.benchmark_readiness(db, actor, course_id)
+
+
+@router.get("/courses/{course_id}/knowledge-review-workspace")
+def knowledge_review_workspace(course_id: int, db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.knowledge_review_workspace(db, actor, course_id)
+
+
+@router.get("/courses/{course_id}/pilot-knowledge-approval-preview")
+def pilot_knowledge_approval_preview(course_id: int, db: Session = Depends(database.get_db), actor=Depends(_admin)):
+    return service.pilot_knowledge_approval_preview(db, actor, course_id)
+
+
+@router.post("/courses/{course_id}/pilot-approve-knowledge")
+def pilot_approve_knowledge(course_id: int, payload: schemas.PilotKnowledgeApproval,
+        db: Session = Depends(database.get_db), actor=Depends(_admin)):
+    return service.pilot_approve_knowledge_packages(db, actor, course_id, payload)
 
 
 @router.get("/courses/{course_id}/knowledge-studio")
@@ -146,3 +167,20 @@ def decide_teaching_pack(course_id: int, revision: int, payload: schemas.Teachin
         db: Session = Depends(database.get_db), actor=Depends(_staff)):
     pack, row = service.decide_teaching_pack(db, actor, course_id, revision, payload)
     return teaching_pack_out(pack, row)
+
+
+@router.get("/courses/{course_id}/external-import/template")
+def external_import_template(course_id: int, db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.external_import_template(db, actor, course_id)
+
+
+@router.post("/courses/{course_id}/external-import/preview")
+def preview_external_import(course_id: int, payload: schemas.ExternalKnowledgeImportPreview,
+        db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.preview_external_import(db, actor, course_id, payload)
+
+
+@router.post("/courses/{course_id}/external-import/commit", status_code=201)
+def commit_external_import(course_id: int, payload: schemas.ExternalKnowledgeImportCommit,
+        db: Session = Depends(database.get_db), actor=Depends(_staff)):
+    return service.commit_external_import(db, actor, course_id, payload)

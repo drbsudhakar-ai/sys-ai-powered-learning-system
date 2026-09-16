@@ -28,10 +28,13 @@ class AcademicContentFoundationTests(unittest.TestCase):
             db.add(self.subject); db.flush()
             self.topic = models.Topic(name=f"Ratio {suffix}", subject_id=self.subject.id)
             db.add(self.topic); db.flush()
+            self.subtopic = models.Subtopic(name=f"Ratio comparison {suffix}", topic_id=self.topic.id)
+            db.add(self.subtopic); db.flush()
             db.add(models.SubjectExpertAssignment(faculty_id=self.expert.user_id, subject_id=self.subject.id))
             db.add(models.FacultyCourseAssignment(faculty_id=self.coordinator.user_id, course_id=self.course.id))
             db.commit()
-            self.course_id, self.subject_id, self.topic_id = self.course.id, self.subject.id, self.topic.id
+            self.course_id, self.course_code = self.course.id, self.course.programme_code
+            self.subject_id, self.topic_id, self.subtopic_id = self.subject.id, self.topic.id, self.subtopic.id
 
     def headers(self, identity):
         return {"Authorization": "Bearer " + identity.token}
@@ -110,7 +113,7 @@ class AcademicContentFoundationTests(unittest.TestCase):
         self.assertEqual(assignment.status_code, 201, assignment.text)
         mine = client.get("/academic-content/reviewers/me", headers=self.headers(self.reviewer))
         self.assertEqual(mine.status_code, 200, mine.text)
-        self.assertEqual(mine.json()["items"][0]["topic_id"], self.topic_id)
+        self.assertIn(self.topic_id, [item["topic_id"] for item in mine.json()["items"]])
         readiness = client.get(f"/academic-content/courses/{self.course_id}/benchmark-readiness",
             headers=self.headers(self.admin))
         self.assertEqual(readiness.status_code, 200, readiness.text)
@@ -147,6 +150,62 @@ class AcademicContentFoundationTests(unittest.TestCase):
         self.assertEqual(studio.status_code, 200, studio.text)
         self.assertEqual(studio.json()["teaching_pack"]["active_revision"], revision)
         self.assertEqual(studio.json()["subjects"][0]["delivery_guide"]["status"], "APPROVED")
+
+    def test_external_package_preview_and_governed_commit(self):
+        payload = {"import_name": "Arithmetic pilot package", "source": {
+            "source_code": f"EXT-{self.topic_id}", "title": "Verified external arithmetic reference",
+            "source_type": "TEXTBOOK", "issuing_authority": "SYS Academic Team",
+            "rights_classification": "REFERENCE_ONLY", "content_text": "Ratios compare quantities in the same units.",
+            "verification_statement": "The administrator checked this source and confirms its academic provenance."},
+            "packages": [{"topic_id": self.topic_id, "language": "en-IN",
+                "objectives": ["Explain and apply ratios"], "prerequisites": ["Division"],
+                "concepts": [{"name": "Ratio", "explanation": "A relative comparison of quantities"}],
+                "definitions": [], "formulas": [], "verified_facts": [],
+                "worked_examples": [{"problem": "Compare 2 and 3", "answer": "2:3",
+                    "reasoning_steps": ["Write the quantities in the requested order."]}],
+                "misconceptions": [{"mistake": "Reversing the terms", "correction": "Preserve the requested order."}],
+                "exam_relevance": {"level": "foundational"},
+                "subtopic_coverage": [{"subtopic_id": self.subtopic_id, "coverage": "Fully covered"}]}]}
+        preview = client.post(f"/academic-content/courses/{self.course_id}/external-import/preview",
+            headers=self.headers(self.admin), json=payload)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertTrue(preview.json()["valid"])
+        committed = client.post(f"/academic-content/courses/{self.course_id}/external-import/commit",
+            headers=self.headers(self.admin), json={**payload, "preview_hash": preview.json()["preview_hash"],
+                "confirmation": "Approved for controlled academic review."})
+        self.assertEqual(committed.status_code, 201, committed.text)
+        self.assertEqual(committed.json()["imported"], 1)
+        package = client.get(f"/academic-content/topics/{self.topic_id}/knowledge-package",
+            headers=self.headers(self.admin))
+        self.assertEqual(package.status_code, 200, package.text)
+        self.assertEqual(package.json()["status"], "DRAFT")
+        self.assertEqual(package.json()["revision"]["subtopic_coverage"][0]["subtopic_id"], self.subtopic_id)
+        package_id = package.json()["id"]
+        pilot_preview = client.get(f"/academic-content/courses/{self.course_id}/pilot-knowledge-approval-preview",
+            headers=self.headers(self.admin))
+        self.assertEqual(pilot_preview.status_code, 200, pilot_preview.text)
+        self.assertEqual(pilot_preview.json()["eligible_count"], 1)
+        pilot = client.post(f"/academic-content/courses/{self.course_id}/pilot-approve-knowledge",
+            headers=self.headers(self.admin), json={"course_code": self.course_code,
+                "reason": "Approved strictly for controlled pilot demonstration and later expert verification.",
+                "expected_package_ids": [package_id]})
+        self.assertEqual(pilot.status_code, 200, pilot.text)
+        self.assertEqual(pilot.json()["status"], "PILOT_APPROVED")
+        self.assertFalse(pilot.json()["institutional_approval"])
+        assigned = client.post("/academic-content/reviewers", headers=self.headers(self.admin),
+            json={"topic_id": self.topic_id, "faculty_id": self.reviewer.user_id})
+        self.assertEqual(assigned.status_code, 201, assigned.text)
+        for identity, action, expected in ((self.admin, "SUBMIT", "SOURCE_REVIEW"),
+                (self.reviewer, "EXPERT_VERIFY", "EXPERT_VERIFIED"),
+                (self.admin, "APPROVE", "APPROVED")):
+            decision = client.post(f"/academic-content/knowledge-packages/{package_id}/decision",
+                headers=self.headers(identity), json={"action": action, "comment": "Independent benchmark verification decision."})
+            self.assertEqual(decision.status_code, 200, decision.text)
+            self.assertEqual(decision.json()["status"], expected)
+        workspace = client.get(f"/academic-content/courses/{self.course_id}/knowledge-review-workspace",
+            headers=self.headers(self.admin))
+        self.assertEqual(workspace.status_code, 200, workspace.text)
+        self.assertTrue(workspace.json()["ready"])
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "
 
 test("Knowledge Studio exposes policy, guides, coverage, and honest future capabilities", () => {
   const ui = read("components/knowledge/CourseKnowledgeStudio.js");
-  for (const text of ["Course Delivery Policy", "Subject Delivery Guides", "Topic and subtopic packages", "P036.2B", "P036.2C", "disabled"]) assert.match(ui, new RegExp(text));
+  for (const text of ["Course Delivery Policy", "Subject Delivery Guides", "External Knowledge Package Import", "Download course template", "Preview and validate", "Commit governed import", "P036.2C", "disabled"]) assert.match(ui, new RegExp(text));
   for (const field of ["audience", "teaching_objective", "required_lesson_stages", "delivery_requirements", "accuracy_requirements"]) assert.match(ui, new RegExp(field));
 });
 
@@ -23,5 +23,5 @@ test("course profile and coordinator responsibility cards link to Knowledge Stud
   assert.match(read("components/admin/CourseProfilePage.js"), /knowledge-studio/);
   assert.match(read("components/auth/FacultyResponsibilityCourses.js"), /knowledge-studio/);
   const api = read("src/api.js");
-  for (const method of ["getCourseKnowledgeStudio", "createCourseTeachingPackRevision", "decideCourseTeachingPack", "saveSubjectDeliveryGuide"]) assert.match(api, new RegExp(method));
+  for (const method of ["getCourseKnowledgeStudio", "createCourseTeachingPackRevision", "decideCourseTeachingPack", "saveSubjectDeliveryGuide", "getExternalKnowledgeTemplate", "previewExternalKnowledgeImport", "commitExternalKnowledgeImport"]) assert.match(api, new RegExp(method));
 });

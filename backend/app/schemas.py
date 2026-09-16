@@ -1357,3 +1357,50 @@ class TeachingPackDecision(BaseModel):
     comment: str = Field(min_length=5, max_length=1000)
 
     model_config = {"extra": "forbid"}
+
+
+class ExternalKnowledgeSource(BaseModel):
+    source_code: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=300)
+    source_type: Literal["OFFICIAL_SYLLABUS", "GOVERNMENT", "TEXTBOOK", "FACULTY_NOTE", "JOURNAL", "WEB_REFERENCE", "OTHER"]
+    issuing_authority: Optional[str] = Field(None, max_length=240)
+    canonical_url: Optional[str] = Field(None, max_length=1000)
+    rights_classification: Literal["REFERENCE_ONLY", "LICENSED", "OPEN", "PUBLIC_DOMAIN", "INSTITUTION_OWNED"] = "REFERENCE_ONLY"
+    content_text: str = Field(min_length=1, max_length=200000)
+    verification_statement: str = Field(min_length=20, max_length=1000)
+    model_config = {"extra": "forbid"}
+
+
+class ExternalKnowledgePackageItem(BaseModel):
+    topic_id: int
+    language: str = Field(default="en-IN", min_length=2, max_length=16)
+    objectives: List[str] = Field(min_length=1, max_length=20)
+    prerequisites: List[str] = Field(default_factory=list, max_length=20)
+    concepts: List[Dict[str, Any]] = Field(min_length=1, max_length=50)
+    definitions: List[Dict[str, Any]] = Field(default_factory=list, max_length=50)
+    formulas: List[Dict[str, Any]] = Field(default_factory=list, max_length=50)
+    verified_facts: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
+    worked_examples: List[Dict[str, Any]] = Field(default_factory=list, max_length=30)
+    misconceptions: List[Dict[str, Any]] = Field(default_factory=list, max_length=30)
+    exam_relevance: Dict[str, Any] = Field(default_factory=dict)
+    subtopic_coverage: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
+    model_config = {"extra": "forbid"}
+
+
+class ExternalKnowledgeImportPreview(BaseModel):
+    import_name: str = Field(min_length=3, max_length=200)
+    source: ExternalKnowledgeSource
+    packages: List[ExternalKnowledgePackageItem] = Field(min_length=1, max_length=250)
+    model_config = {"extra": "forbid"}
+
+
+class ExternalKnowledgeImportCommit(ExternalKnowledgeImportPreview):
+    preview_hash: str = Field(min_length=64, max_length=64)
+    confirmation: str = Field(min_length=5, max_length=1000)
+
+
+class PilotKnowledgeApproval(BaseModel):
+    course_code: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=20, max_length=2000)
+    expected_package_ids: List[int] = Field(min_length=1, max_length=250)
+    model_config = {"extra": "forbid"}
